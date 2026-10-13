@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -23,7 +23,13 @@ export function ActionForm({
   onSuccess?: () => void;
   resetOnSuccess?: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(action, null);
+  // Incremented on each success so the form remounts (clearing inputs) when resetOnSuccess is set.
+  const [resetKey, setResetKey] = useState(0);
+  const [state, formAction, pending] = useActionState(async (prev: ActionResult, fd: FormData) => {
+    const res = await action(prev, fd);
+    if (res?.ok && resetOnSuccess) setResetKey((k) => k + 1);
+    return res;
+  }, null);
   useEffect(() => {
     if (!state) return;
     if (state.error) toast.error(state.error);
@@ -37,7 +43,7 @@ export function ActionForm({
     <form
       action={formAction}
       className={className}
-      key={resetOnSuccess && state?.ok ? String(Date.now()) : undefined}
+      key={resetKey}
     >
       {children(state, pending)}
     </form>

@@ -3,6 +3,10 @@ import { SiteFooter } from "@/components/public/site-footer";
 import { getSiteSettings } from "@/lib/public/queries";
 import "@/components/public/public.css";
 
+// Public pages show live program stats from the database, so they must be
+// rendered per request rather than frozen at build time.
+export const dynamic = "force-dynamic";
+
 /**
  * Layout for every public page (no login). Adds the skip link, the header,
  * the footer, and the stationery stylesheet. The apply form under /apply
