@@ -101,7 +101,7 @@ export function TaskForm({
             <div className="flex items-end pb-1.5">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" name="needsOwner" defaultChecked={task?.needsOwner ?? false} className="size-4 rounded border-input accent-primary" />
-                Needs an owner
+                Leave unclaimed so anyone can pick it up
                 <span className="text-xs text-muted-foreground">(ignored once someone is assigned)</span>
               </label>
             </div>

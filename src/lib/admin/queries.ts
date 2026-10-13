@@ -11,6 +11,7 @@ const userListSelect = {
   allowedModules: true,
   firstName: true,
   lastName: true,
+  photoKey: true,
   leadershipTitle: true,
   isActive: true,
   mustChangePassword: true,

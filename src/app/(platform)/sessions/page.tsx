@@ -25,7 +25,7 @@ function SessionTable({ rows, totals }: { rows: Row[]; totals?: boolean }) {
           <TableHead>Term</TableHead>
           <TableHead className="text-right">Participants</TableHead>
           <TableHead className="text-right">Volunteers</TableHead>
-          <TableHead className="text-right">Materials</TableHead>
+          <TableHead className="text-right">Files / links</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -43,7 +43,9 @@ function SessionTable({ rows, totals }: { rows: Row[]; totals?: boolean }) {
             <TableCell>{s.term}</TableCell>
             <TableCell className="text-right">{s.participantCount}</TableCell>
             <TableCell className="text-right">{s._count.volunteers}</TableCell>
-            <TableCell className="text-right">{s._count.materials}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {s._count.documents} / {s._count.materials}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

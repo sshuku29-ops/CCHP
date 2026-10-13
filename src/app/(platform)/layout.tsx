@@ -1,9 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { requireUser, allowedModules } from "@/lib/auth/guards";
+import { requireUser, allowedModules, isAdmin } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { ROLE_LABELS, type Role } from "@/lib/constants";
-import { initials } from "@/lib/utils";
 import { NAV } from "@/components/platform/nav-config";
 import { Shell } from "@/components/platform/shell";
 
@@ -15,6 +14,12 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
   if (user.mustChangePassword && !pathname.startsWith("/change-password")) {
     redirect("/change-password");
   }
+  // First-login photo prompt: shown once per account (see /welcome). People
+  // who already have a photo, or who answered the prompt, are never sent there.
+  const onPromptSafePage = pathname.startsWith("/welcome") || pathname.startsWith("/change-password") || pathname.startsWith("/account");
+  if (!user.photoKey && !user.photoPromptSeenAt && !onPromptSafePage) {
+    redirect("/welcome");
+  }
   const mods = allowedModules(user);
   const groups = NAV.map((g) => ({
     ...g,
@@ -25,10 +30,14 @@ export default async function PlatformLayout({ children }: LayoutProps<"/">) {
     <Shell
       groups={groups}
       unread={unread}
+      // Admins get a read-only phone view (editing works best on a computer).
+      readOnlyOnPhones={isAdmin(user)}
       user={{
         name: `${user.firstName} ${user.lastName}`,
         role: user.leadershipTitle ?? ROLE_LABELS[user.role as Role],
-        initials: initials(user.firstName, user.lastName),
+        firstName: user.firstName,
+        lastName: user.lastName,
+        photoKey: user.photoKey,
       }}
     >
       {children}

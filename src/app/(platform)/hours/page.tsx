@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { HoursLogForm } from "@/components/lms/hours-form";
+import { MyCertificates } from "@/components/certificates/my-certificates";
+import { listMySessionIds } from "@/lib/roster/queries";
 
 export const metadata = { title: "Hours" };
 
@@ -49,7 +51,13 @@ export default async function HoursPage(props: PageProps<"/hours">) {
   const admin = isAdmin(user);
   const tab = admin && sp.tab === "all" ? "all" : "mine";
 
-  const [sessions, users] = await Promise.all([listRecentSessions(), admin ? listUsersForHours() : Promise.resolve(undefined)]);
+  const [recentSessions, users, mySessionIds] = await Promise.all([
+    listRecentSessions(),
+    admin ? listUsersForHours() : Promise.resolve(undefined),
+    listMySessionIds(user.id),
+  ]);
+  // Sessions this person is rostered for come first in the picker (same order otherwise).
+  const sessions = [...recentSessions].sort((a, b) => Number(mySessionIds.has(b.id)) - Number(mySessionIds.has(a.id)));
 
   return (
     <div>
@@ -98,6 +106,7 @@ async function MyHours({
             <HoursLogForm sessions={sessions} users={users} currentUserId={userId} />
           </CardContent>
         </Card>
+        <MyCertificates userId={userId} />
       </div>
 
       <div className="space-y-6 lg:order-1">

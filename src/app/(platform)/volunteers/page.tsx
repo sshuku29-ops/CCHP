@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { NativeSelect } from "@/components/shared/native-select";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -48,7 +49,7 @@ export default async function VolunteersPage(props: PageProps<"/volunteers">) {
         }
       />
 
-      <form method="get" className="mb-4 grid gap-2 sm:grid-cols-2 md:grid-cols-5">
+      <form method="get" className="mb-4 grid gap-2 sm:grid-cols-2 md:grid-cols-5" data-allow-mobile>
         <Input name="q" placeholder="Search by name" defaultValue={filters.q} />
         <NativeSelect name="role" defaultValue={filters.role}>
           <option value="">All roles</option>
@@ -101,8 +102,9 @@ export default async function VolunteersPage(props: PageProps<"/volunteers">) {
             {rows.map((v) => (
               <TableRow key={v.id}>
                 <TableCell>
-                  <Link href={`/volunteers/${v.id}`} className="font-medium hover:underline">
-                    {v.lastName}, {v.firstName}
+                  <Link href={`/volunteers/${v.id}`} className="inline-flex items-center gap-2 font-medium hover:underline">
+                    <UserAvatar user={v} size="sm" />
+                    <span>{v.lastName}, {v.firstName}</span>
                   </Link>
                   {!v.isActive ? <span className="ml-2 text-xs text-muted-foreground">(inactive)</span> : null}
                 </TableCell>

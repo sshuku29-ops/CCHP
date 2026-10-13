@@ -93,9 +93,10 @@ export function SessionForm({
             <FieldError msg={state?.fieldErrors?.notes} />
           </div>
 
-          {/* Materials: repeatable label + link rows. Inputs share a name so the server reads them with getAll(). */}
+          {/* External links: repeatable label + link rows. Inputs share a name so the server reads them with getAll().
+              Files themselves are uploaded in the "Materials" card on the session page. */}
           <div className="space-y-2">
-            <Label>Materials (slides, handouts, links)</Label>
+            <Label>External links (Google Docs, slides, etc.)</Label>
             {materials.map((m, i) => (
               <div key={i} className="flex flex-col gap-2 sm:flex-row">
                 <Input
@@ -120,7 +121,7 @@ export function SessionForm({
               </div>
             ))}
             <Button type="button" variant="outline" size="sm" onClick={() => setMaterials((prev) => [...prev, { label: "", url: "" }])}>
-              Add material
+              Add link
             </Button>
           </div>
 

@@ -1,61 +1,54 @@
 # CCHP Platform — what is left to do
 
-Status as of 2026-10-13. Everything in the spec is built and runs locally. This list is what stands
-between the current build and a fully deployed, maintained platform.
+Status as of 2026-10-13 (evening). Everything requested so far is built and verified locally:
+inline-editable public site, meeting notes with a rich text editor, on-platform library and session materials,
+quizzes, roster, informal-session log, certificates, claimable tasks, profile photos, phone read-only mode for admins,
+SMS opt-in, Postgres with real data imported from the Drive.
 
-## A. Required before the first real deploy
-
-1. **Pick a host and database** (see ADMIN_GUIDE §4). Recommended: Vercel + Turso (free), or Railway with Postgres.
-   Nobody has run a production deploy yet.
-2. **Set the environment variables** on the host from `.env.example`; generate `CRON_SECRET`; set `APP_URL`.
-3. **Email provider.** Reminder digests currently log to the console. Create a Resend account, verify a sending
-   domain (or use the Colby alias if IT allows), set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM`.
-4. **Schedule the reminder cron** (daily) — Vercel cron snippet in `docs/REMINDERS.md`.
-5. **File uploads on Vercel.** Assignment file uploads use local disk; on Vercel that is not persistent.
-   Either switch `src/lib/uploads.ts` to Cloudflare R2 / S3 (three functions) or tell volunteers to submit links only.
-6. **Backups**: enable them on the host and test one restore (ADMIN_GUIDE §7).
-7. **Private GitHub repo** with secret scanning + Dependabot on; push the code; `.env` never committed (already gitignored).
-8. **Second Main Admin** created and the seed admin's password rotated.
-9. **Data gaps** in `docs/DATA_GAPS.md` items 1–5 (passwords handed out, missing director, bios, contact email, resources verified).
+## A. Before the first real deploy (owner's choice: Vercel + Supabase)
+Follow `docs/DEPLOY_SUPABASE_VERCEL.md` step by step. Short version:
+1. Redeem the **Supabase** and **AWS** credits (`docs/FREE_CREDITS.md`).
+2. Create the Supabase project + private bucket; run migrations and the import scripts from a laptop.
+3. Private GitHub repo → Vercel project → env vars → cron.
+4. Buy a domain (~$12/yr); set up Resend with SPF/DKIM/DMARC so email never lands in spam.
+5. Hand out the temporary passwords (`scripts/.import-temp-passwords.json`), then delete the file.
+6. Fill the gaps in `docs/DATA_GAPS.md` items 1–6.
+7. Run the security checklist at the end of the deploy guide.
 
 ## B. Testing still owed
+- Phone-width visual pass on public pages and on the volunteer platform views (admins are read-only on phones by design).
+- Kanban drag-and-drop on a touch device.
+- A full recruitment dry run with two reviewer accounts.
+- CSV importers with a real Google Sheets export.
+- Quill editor submit flows (notes, handoff, module instructions) once more after deploy.
+- Restore a database backup once.
 
-- Browser pass on **phone widths** for every public page and the platform shell (only desktop was checked).
-- Kanban **drag-and-drop** on a touch device (the select fallback works; drag was not exercised).
-- A full **recruitment dry run**: open a cycle, submit a test application from the public form, score it with two
-  admin accounts, reveal, mark a decision, export CSV.
-- **CSV importers** with a real export from Google Sheets (the format is documented in `docs/MIGRATION.md`; tested only with synthetic files).
-- **Quiz** flow as a volunteer end to end in the browser (unit-tested with scripts only).
-- Inline editing of public text as an Admin with module scoping (not Main Admin).
-- Restore from backup once.
+## C. Notifications, email, SMS — what we will use, cheap and not spam
+| Channel | Provider | Cost | Why / how it stays out of spam |
+| --- | --- | --- | --- |
+| In-app | built in | $0 | Bell + notifications page; already covers tasks, follow-ups, submissions, assignments, session reminders. |
+| Email digests | **Resend** (3,000/month free) or **AWS SES** with the $10k YC credits | $0 | Own domain with SPF + DKIM + DMARC, consistent low volume, transactional only, plain-text part included. Setup in the deploy guide §4. |
+| SMS | **Twilio toll-free number** (verified) or **AWS SNS** with credits | ~$0.008/text + ~$2/mo number | Opt-in only (`smsOptIn` on My account), "CCHP:" prefix, "Reply STOP", session reminders only. Carrier registration takes ~2 weeks. Optional — email + in-app already cover everything. |
+| Push notifications | none | — | Explicit non-goal in the spec. |
 
-## C. Notifications, email, SMS — what exists and what is missing
+## D. Built this round (so nothing here is pending)
+Session roster and assignment (`/sessions/roster`), informal session quick-log (`/sessions/informal/new`),
+certificates (auto per term + manual, ED/Main Admin only; PDF with pdf-lib), profile photos with first-login prompt
+and avatars everywhere, rich text editor (Quill) for notes/handoff/modules/library/profile, meeting notes with 37
+imported past notes, library pages replacing Google Doc links, session materials (brochures) viewable inline,
+partner logos, Colby footer mark (approval pending), clickable team member pages, claimable/personal tasks.
 
-| Channel | Today | To do |
-| --- | --- | --- |
-| In-app notifications | Task assigned, task due in 2 days, overdue, waiting-on follow-up due, submission reviewed, new submission (to LMS admins) | Add: new application received (to recruitment admins), quiz passed, feedback item posted, session logged |
-| Email digest | One daily email per person with due/overdue tasks and follow-ups (console mode until Resend is configured) | Configure provider; add a "weekly summary for the board" variant; let users opt out in My account |
-| Transactional email | None (by design: no automated applicant emails in v1) | v2 option: "application received" auto-reply and templated interview/decision emails sent from the platform with one click |
-| SMS / push | Not built, and the spec lists phone push as a non-goal | If wanted later: Twilio SMS for session-day reminders (~$0.01/msg). Needs phone-number consent, a `smsOptIn` field, and a second cron. Not recommended for v1. |
-| Reminders for volunteers | Task due dates only | Add assignment due-date reminders (Submission missing + Assignment.dueDate within 2 days) to `src/lib/reminders/run.ts` |
-| Calendar invites | None | Optional: .ics download for session dates from the Calendar page |
+## E. Next features worth doing
+1. **Meeting recording → transcript → notes** (plan: `docs/MEETING_RECORDING_PLAN.md`; needs Deepgram + OpenAI/Anthropic credits).
+2. Duplicate-a-recruitment-cycle button.
+3. Public "next session" banner from the roster.
+4. Orientation hours one-click for a cohort.
+5. .ics calendar download for session dates.
+6. Audit-log filters/export.
+7. A proper high-resolution Colby wordmark once Colby approves use (replace via Public site → Partners logo upload or the LOGO document).
+8. Resident-safe photo review step: a checkbox "no residents in this photo" is text today; could be enforced on upload.
 
-## D. Features that would round out v1
-
-- **Session groups**: assign the 3 volunteer groups per semester to session dates (today assignment happens by adding volunteers to each session record after the fact). A small "roster" view per upcoming session.
-- **Certificates**: generate the end-of-semester volunteer certificate PDF from logged hours (replaces the manual Canva certificates).
-- **Orientation hours**: a one-click "add 1h orientation" for a cohort.
-- **Informal session quick-log**: a 30-second form (date, activities, volunteers, residents count) on the dashboard.
-- **Leadership photo upload** instead of pasting a URL (needs the R2 adapter first).
-- **Rich-text editor** for handoff docs and module instructions (today: Markdown textarea with preview).
-- **Duplicate a recruitment cycle** button (questions + rubric) so each semester starts from last time.
-- **Public "next session" banner** when an upcoming formal session is logged.
-- **Audit-log viewer filters** and CSV export of the audit log.
-- **Impact page survey aggregates** sourced from the report snapshots automatically (today they live in the report narrative).
-
-## E. Housekeeping for maintainers
-
-- `docs/ADMIN_GUIDE.md`, `CONVENTIONS.md`, `MIGRATION.md`, `REMINDERS.md`, `DATA_GAPS.md`, this file.
-- Keep Prisma on 6.x; keep `cacheComponents` off; run `npm run typecheck && npm run lint && npm run build` before merging.
-- Delete `scripts/.import-temp-passwords.json` after handing out passwords.
-- The `.claude/` folder (agent skills) and `skills-lock.json` are developer tooling, safe to delete.
+## F. Housekeeping
+- `AI_CONTEXT.md` is the handoff for any AI session; keep it current.
+- Keep Prisma 6, Postgres, `cacheComponents` off. Verify with `npx next typegen && npx tsc --noEmit && npx eslint src && npx next build`.
+- `npm run db:start` must be running for local dev.

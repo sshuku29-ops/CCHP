@@ -6,6 +6,8 @@ import {
   updateLeadershipProfileAction,
   savePartnerAction,
   deletePartnerAction,
+  uploadPartnerLogoAction,
+  removePartnerLogoAction,
   saveResourceAction,
   deleteResourceAction,
   markResourceVerifiedAction,
@@ -85,6 +87,7 @@ export type LeaderRow = {
   leadershipTitle: string | null;
   bio: string | null;
   photoUrl: string | null;
+  photoKey: string | null;
   showOnPublicSite: boolean;
 };
 
@@ -132,7 +135,55 @@ export function LeadershipProfileForm({ leader }: { leader: LeaderRow }) {
 
 // ─────────────────────────── Partners ───────────────────────────
 
-export type PartnerRow = { id: string; name: string; description: string | null; url: string | null; order: number };
+export type PartnerRow = { id: string; name: string; description: string | null; url: string | null; logoKey: string | null; order: number };
+
+/**
+ * Logo upload for an existing partner. Separate form from PartnerForm because
+ * a file input needs its own submit (multipart) and a "Remove logo" button.
+ */
+export function PartnerLogoForm({ partner }: { partner: PartnerRow }) {
+  const upload = uploadPartnerLogoAction.bind(null, partner.id);
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+      <div className="flex h-20 w-40 shrink-0 items-center justify-center rounded-md border bg-background p-2">
+        {partner.logoKey ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/files/${partner.logoKey}`} alt={`${partner.name} logo`} className="max-h-16 w-auto max-w-full object-contain" />
+        ) : (
+          <span className="text-xs text-muted-foreground">No logo yet</span>
+        )}
+      </div>
+      <ActionForm action={upload} className="flex-1 space-y-2" resetOnSuccess>
+        {(state) => (
+          <>
+            <Label htmlFor={`logo-${partner.id}`}>Logo (PNG, JPG, SVG or WebP, max 2 MB)</Label>
+            <Input id={`logo-${partner.id}`} name="logo" type="file" accept=".png,.jpg,.jpeg,.webp,.gif,.svg" required />
+            <FieldError msg={state?.fieldErrors?.logo} />
+            <div className="flex flex-wrap gap-2">
+              <SubmitButton variant="outline" size="sm" pendingText="Uploading…">
+                {partner.logoKey ? "Replace logo" : "Upload logo"}
+              </SubmitButton>
+              {partner.logoKey ? (
+                <ConfirmButton
+                  variant="ghost"
+                  size="sm"
+                  message={`Remove the logo for ${partner.name}?`}
+                  action={async () => {
+                    const res = await removePartnerLogoAction(partner.id);
+                    if (res?.ok) toast.success("Logo removed.");
+                    return res;
+                  }}
+                >
+                  Remove logo
+                </ConfirmButton>
+              ) : null}
+            </div>
+          </>
+        )}
+      </ActionForm>
+    </div>
+  );
+}
 
 export function PartnerForm({ partner }: { partner?: PartnerRow }) {
   const save = savePartnerAction.bind(null, partner?.id ?? null);

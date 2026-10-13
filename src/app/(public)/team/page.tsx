@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { Editable } from "@/components/cms/editable";
-import { InitialsAvatar } from "@/components/public/initials-avatar";
+import { PersonAvatar } from "@/components/public/person-avatar";
 import { PageTitle, Section, SectionHeading } from "@/components/public/section";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { canEditContent } from "@/lib/cms/content";
@@ -27,13 +28,19 @@ export default async function TeamPage() {
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {leaders.map((p) => (
-              <li key={p.id} className="rounded-lg border bg-card p-5">
-                <InitialsAvatar firstName={p.firstName} lastName={p.lastName} photoUrl={p.photoUrl} size="lg" />
-                <p className="mt-4 font-heading text-lg font-semibold">
-                  {p.firstName} {p.lastName}
-                </p>
-                {p.leadershipTitle ? <p className="text-sm font-medium text-primary">{p.leadershipTitle}</p> : null}
-                {p.bio ? <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{p.bio}</p> : null}
+              <li key={p.id}>
+                <Link href={`/team/${p.id}`} className="block h-full rounded-lg border bg-card p-5 transition-colors hover:bg-muted/50">
+                  <PersonAvatar person={p} size="xl" />
+                  <p className="mt-4 font-heading text-lg font-semibold">
+                    {p.firstName} {p.lastName}
+                  </p>
+                  {p.leadershipTitle ? <p className="text-sm font-medium text-primary">{p.leadershipTitle}</p> : null}
+                  {p.bio ? <p className="mt-2 text-sm text-muted-foreground leading-relaxed line-clamp-3">{p.bio}</p> : null}
+                  <span className="mt-3 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
+                    <Editable k="team.leadership.readMore" as="span" />
+                    {" →"}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -62,7 +69,10 @@ export default async function TeamPage() {
                 {volunteers.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell>
-                      {v.firstName} {v.lastName}
+                      <span className="flex items-center gap-3">
+                        <PersonAvatar person={v} size="sm" />
+                        {v.firstName} {v.lastName}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{v.hours.toLocaleString("en-US")}</TableCell>
                   </TableRow>

@@ -65,6 +65,7 @@ export async function listVolunteers(filters: VolunteerFilters = {}): Promise<Vo
       id: true,
       firstName: true,
       lastName: true,
+      photoKey: true,
       email: true,
       phone: true,
       graduationDate: true,
@@ -111,6 +112,7 @@ export async function getVolunteer(id: string) {
       id: true,
       firstName: true,
       lastName: true,
+      photoKey: true,
       email: true,
       phone: true,
       graduationDate: true,
@@ -172,7 +174,7 @@ export async function listSessions(filters: SessionFilters = {}) {
       ...(filters.type ? { type: filters.type } : {}),
     },
     include: {
-      _count: { select: { volunteers: true, materials: true } },
+      _count: { select: { volunteers: true, materials: true, documents: true } },
     },
     orderBy: { date: "desc" },
   });
@@ -183,6 +185,11 @@ export async function getSession(id: string) {
     where: { id },
     include: {
       materials: true,
+      // Uploaded files (brochure PDFs, slides, volunteer photos). Grouped by category on the page.
+      documents: {
+        select: { id: true, title: true, kind: true, category: true, fileKey: true, fileName: true, isPublic: true, size: true, createdAt: true },
+        orderBy: [{ category: "asc" }, { createdAt: "asc" }],
+      },
       volunteers: {
         include: { user: { select: { id: true, firstName: true, lastName: true } } },
         orderBy: { user: { lastName: "asc" } },

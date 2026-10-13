@@ -47,7 +47,10 @@ export async function runRemindersNowAction() {
     taskDue: String(counts.taskDue),
     taskOverdue: String(counts.taskOverdue),
     waitingOn: String(counts.waitingOn),
+    sessionReminders: String(counts.sessionReminders),
+    assignmentDue: String(counts.assignmentDue),
     emails: String(counts.emails),
+    sms: String(counts.sms),
   });
   redirect(`/notifications?${q.toString()}`);
 }

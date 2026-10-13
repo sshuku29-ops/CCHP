@@ -354,9 +354,12 @@ export async function setTaskStatus(id: string, status: string): Promise<ActionR
 
 export async function deleteTask(id: string): Promise<ActionResult> {
   try {
-    const user = await actionModule("projects");
-    const existing = await db.task.findUnique({ where: { id }, select: { projectId: true } });
+    const user = await actionUser();
+    const existing = await db.task.findUnique({ where: { id }, select: { projectId: true, isPersonal: true, createdById: true } });
     if (!existing) return { error: "Task not found." };
+    // Admins can delete any task; volunteers only their own personal tasks.
+    const ownsPersonal = existing.isPersonal && existing.createdById === user.id;
+    if (!canManageProjects(user) && !ownsPersonal) throw new AuthError();
     await db.task.delete({ where: { id } });
     await audit(user.id, "task.delete", id);
     revalidateAll(existing.projectId ? [`/projects/${existing.projectId}`] : []);
@@ -429,4 +432,96 @@ export async function addTaskComment(taskId: string, _prev: ActionResult, fd: Fo
   await db.taskComment.create({ data: { taskId, authorId: user.id, body: parsed.data.body } });
   revalidatePath(`/tasks/${taskId}`);
   return { ok: true };
+}
+
+// ─────────────────── Personal tasks & claiming ────────────────
+
+const personalTaskSchema = z.object({
+  title: z.string().trim().min(2, "Give the task a title.").max(200),
+  description: optionalText(8000),
+  dueDate: dateField,
+});
+
+/**
+ * "New task" on /tasks for anyone signed in. The task is private: it is
+ * flagged isPersonal, assigned to its creator, and only they (and admins)
+ * can see it.
+ */
+export async function createPersonalTask(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  let user;
+  try {
+    user = await actionUser();
+  } catch (e) {
+    return authResult(e);
+  }
+  const parsed = personalTaskSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const d = parsed.data;
+  const task = await db.task.create({
+    data: {
+      title: d.title,
+      description: d.description,
+      dueDate: d.dueDate,
+      isPersonal: true,
+      needsOwner: false,
+      createdById: user.id,
+      assignees: { create: [{ userId: user.id }] },
+    },
+  });
+  await audit(user.id, "task.create.personal", task.id);
+  revalidateAll();
+  return { ok: true, message: "Task added to your list." };
+}
+
+/**
+ * Claim an unclaimed task: the current user becomes its assignee and the
+ * "needs owner" flag is cleared. Whoever created the task is told.
+ */
+export async function claimTask(id: string): Promise<ActionResult> {
+  try {
+    const user = await actionUser();
+    const task = await db.task.findUnique({
+      where: { id },
+      select: { title: true, needsOwner: true, isPersonal: true, status: true, createdById: true, projectId: true, assignees: { select: { userId: true } } },
+    });
+    if (!task) return { error: "Task not found." };
+    if (task.isPersonal) return { error: "Personal tasks can't be claimed." };
+    if (task.status === "DONE") return { error: "That task is already done." };
+    if (task.assignees.length > 0 || !task.needsOwner) return { error: "Someone already picked this task up." };
+    await db.task.update({
+      where: { id },
+      data: { needsOwner: false, assignees: { create: [{ userId: user.id }] } },
+    });
+    if (task.createdById && task.createdById !== user.id) {
+      await notify(task.createdById, {
+        type: "ASSIGNED",
+        title: `${user.firstName} ${user.lastName} claimed a task: ${task.title}`,
+        href: `/tasks/${id}`,
+      });
+    }
+    await audit(user.id, "task.claim", id);
+    revalidateAll([`/tasks/${id}`, ...(task.projectId ? [`/projects/${task.projectId}`] : [])]);
+    return { ok: true, message: "It's yours. The task is now in your list." };
+  } catch (e) {
+    return authResult(e);
+  }
+}
+
+/** Admin: put a task back in the unclaimed pool (removes every assignee). */
+export async function releaseTask(id: string): Promise<ActionResult> {
+  try {
+    const user = await actionModule("projects");
+    const task = await db.task.findUnique({ where: { id }, select: { isPersonal: true, projectId: true } });
+    if (!task) return { error: "Task not found." };
+    if (task.isPersonal) return { error: "Personal tasks can't be released." };
+    await db.$transaction([
+      db.taskAssignee.deleteMany({ where: { taskId: id } }),
+      db.task.update({ where: { id }, data: { needsOwner: true } }),
+    ]);
+    await audit(user.id, "task.release", id);
+    revalidateAll([`/tasks/${id}`, ...(task.projectId ? [`/projects/${task.projectId}`] : [])]);
+    return { ok: true, message: "Task released. Anyone can claim it now." };
+  } catch (e) {
+    return authResult(e);
+  }
 }

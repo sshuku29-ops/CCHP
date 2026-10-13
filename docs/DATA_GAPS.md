@@ -26,15 +26,18 @@ Demo data was removed. The `admin` account was kept.
 | Partners | MMHS, MYAN, Colby Civic Engagement | Spec |
 | Local resources | 7 entries, **unpublished** until verified | Meeting notes (Jay Hansen, Sep 3 2026) |
 | Public site text | Mission and hero text from the Qualtrics doc and the outreach email | Drive docs |
+| Meeting notes | 37 notes (2024–25: 13, 2025–26: 13, 2026: 10, + standing agenda) in `/notes`, editable | three Meeting Notes docs |
+| Session materials | 5 brochure PDFs attached to their sessions and shown on the public Impact page; recruitment poster; presentation master template + brochure example in the training library | Drive PDFs / Slides exports |
+| Library pages | Master Topic Outline, Same-Day Prep Checklist, Volunteer Responsibilities & Timeline, "What goes where" guide — on the platform, editable | Moodle templates |
+| Partner logos | MMHS, MYAN, Colby (small file) | partner websites |
 
 ## Must be filled in or checked (in priority order)
 
 1. **Temporary passwords.** 15 active accounts were created with one-time passwords in
    `scripts/.import-temp-passwords.json` (gitignored). Hand them out in person, then delete the file.
    Everyone is forced to change their password on first login.
-2. **Who is the Systems & Data Management Director?** No name was found in the Drive. Create the account
-   (Settings → Users) and make them a second Main Admin. Also unknown: whether an Executive Assistant exists this year.
-3. **Leadership bios and photos** — none in the Drive. Each leader: My account → bio + photo URL.
+2. **Second Main Admin.** Saidafzal Shukurov is set as Systems & Data Management Director on the `admin` account. Promote one more leader to Main Admin as backup. Unknown: whether an Executive Assistant exists this year.
+3. **Leadership bios and photos** — none in the Drive. Each leader is asked for a photo on first login; bios and the longer "About you" are on My account.
 4. **Contact email and Instagram URL** — not found. Public site → General. (The CCHP alias is mentioned but never spelled out.)
 5. **Local resources** — the 7 entries came from meeting notes, not from a verified list. Owners should check
    each one (phone, address, hours), press "Mark verified today", and publish.
@@ -60,3 +63,10 @@ Demo data was removed. The `admin` account was kept.
 - Pre-session Qualtrics demographics (income, race, etc.) — not allowed by the spec.
 - Session photos, brochure PDFs, slide decks — they stay in the Drive; the platform links to them.
 - The old Moodle page content beyond the templates listed above.
+
+## Added in round 3
+18. **Spring 2026 Clinic 1 brochure (Mar 12)** failed to download (4.5 MB); upload it on the session page (Sessions → Mar 12, 2026 → Materials).
+19. **Colby logo** is a 119×61 px file from the Civic Engagement site. Get the official wordmark (and approval) and upload it via Public site → Partners or replace the LOGO document.
+20. **Session photos**: none imported (photos are in Drive > Media). Upload volunteer-only photos per session.
+21. **Slide decks** (16–50 MB Google Slides) were not exported; the Drive links remain under "External links" on each session. Export to PDF and upload if you want them on the platform.
+22. **Fall 2026 sessions** have no records yet, so the roster is empty — add upcoming sessions first (Sessions → New), then assign volunteers.

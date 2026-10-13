@@ -7,6 +7,7 @@ import { getVolunteer } from "@/lib/records/queries";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,15 +24,20 @@ export default async function VolunteerDetailPage(props: PageProps<"/volunteers/
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`${v.firstName} ${v.lastName}`}
-        description={`${ROLE_LABELS[v.role as Role] ?? v.role}${v.isActive ? "" : " · inactive"}${v.publicHoursOptIn ? " · opted in to public volunteer list" : ""}`}
-        actions={
-          <Button asChild variant="outline" size="sm">
-            <Link href="/volunteers">Back to directory</Link>
-          </Button>
-        }
-      />
+      <div className="flex items-start gap-4">
+        <UserAvatar user={v} size="lg" className="mt-1 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <PageHeader
+            title={`${v.firstName} ${v.lastName}`}
+            description={`${ROLE_LABELS[v.role as Role] ?? v.role}${v.isActive ? "" : " · inactive"}${v.publicHoursOptIn ? " · opted in to public volunteer list" : ""}`}
+            actions={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/volunteers">Back to directory</Link>
+              </Button>
+            }
+          />
+        </div>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Sessions participated" value={v.sessionParticipation.length} />

@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit";
 import { LEADERSHIP_ROLES } from "@/lib/constants";
 import { parseDateInput } from "@/lib/dates";
 import { fieldErrorsFromZod, type ActionResult } from "@/lib/action-result";
+import { deleteUpload, IMAGE_EXTENSIONS, storeUpload, validateUpload } from "@/lib/uploads";
 import { SITE_SETTING_KEYS } from "./queries";
 
 /**
@@ -124,8 +125,45 @@ export async function savePartnerAction(id: string | null, _prev: ActionResult, 
 
 export async function deletePartnerAction(id: string): Promise<ActionResult> {
   const actor = await actionModule("site");
+  const partner = await db.communityPartner.findUnique({ where: { id }, select: { logoKey: true } });
   await db.communityPartner.delete({ where: { id } }).catch(() => null);
+  if (partner?.logoKey) await deleteUpload(partner.logoKey);
   await audit(actor.id, "site.partner.delete", id);
+  revalidateSite();
+  return { ok: true };
+}
+
+/** Logo file types we accept: the usual images plus SVG (vector logos). */
+const LOGO_EXTENSIONS = [...IMAGE_EXTENSIONS, "svg"];
+
+/**
+ * Upload (or replace) a partner's logo. The file is stored through
+ * src/lib/uploads.ts and its key saved on the partner; /api/files/[key]
+ * serves partner logos without signing in, so they show on the public site.
+ */
+export async function uploadPartnerLogoAction(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const actor = await actionModule("site");
+  const partner = await db.communityPartner.findUnique({ where: { id }, select: { id: true, logoKey: true, name: true } });
+  if (!partner) return { error: "Partner not found." };
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) return { fieldErrors: { logo: "Choose an image file." } };
+  const problem = validateUpload(file, LOGO_EXTENSIONS, 2 * 1024 * 1024);
+  if (problem) return { fieldErrors: { logo: problem } };
+  const stored = await storeUpload(file);
+  await db.communityPartner.update({ where: { id }, data: { logoKey: stored.key } });
+  if (partner.logoKey) await deleteUpload(partner.logoKey); // remove the old file after the swap
+  await audit(actor.id, "site.partner.logo", id, { name: partner.name });
+  revalidateSite();
+  return { ok: true, message: "Logo uploaded." };
+}
+
+export async function removePartnerLogoAction(id: string): Promise<ActionResult> {
+  const actor = await actionModule("site");
+  const partner = await db.communityPartner.findUnique({ where: { id }, select: { logoKey: true } });
+  if (!partner) return { error: "Partner not found." };
+  await db.communityPartner.update({ where: { id }, data: { logoKey: null } });
+  if (partner.logoKey) await deleteUpload(partner.logoKey);
+  await audit(actor.id, "site.partner.logo.remove", id);
   revalidateSite();
   return { ok: true };
 }

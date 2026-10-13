@@ -13,7 +13,7 @@ import { isTaskOverdue } from "@/lib/projects/progress";
 import type { TaskRow } from "@/lib/projects/queries";
 import { fmtDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
-import { ProjectDot, NeedsOwnerBadge } from "./bits";
+import { ProjectDot, Assignees } from "./bits";
 
 const COLUMN_STYLES: Record<TaskStatus, string> = {
   TODO: "border-t-slate-400",
@@ -138,13 +138,7 @@ function BoardCard({
         </p>
       ) : null}
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        {task.assignees.length > 0 ? (
-          <span className="truncate">{task.assignees.map((a) => `${a.user.firstName} ${a.user.lastName.charAt(0)}.`).join(", ")}</span>
-        ) : task.needsOwner ? (
-          <NeedsOwnerBadge />
-        ) : (
-          <span>Unassigned</span>
-        )}
+        <Assignees task={task} />
         {task.priority === "HIGH" ? <span className="font-medium text-red-600 dark:text-red-400">High</span> : null}
         {task.dueDate ? (
           <span className={cn("ml-auto tabular-nums", overdue && "font-medium text-red-600 dark:text-red-400")}>{fmtDate(task.dueDate, "MMM d")}</span>

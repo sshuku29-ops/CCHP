@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { SiteSettingsForm, LeadershipProfileForm, PartnerForm, ResourceForm } from "@/components/admin/site-content-forms";
+import { UserAvatar } from "@/components/shared/user-avatar";
+import { SiteSettingsForm, LeadershipProfileForm, PartnerForm, PartnerLogoForm, ResourceForm } from "@/components/admin/site-content-forms";
 
 export const metadata = { title: "Public site content" };
 
@@ -87,12 +88,28 @@ async function LeadershipTab() {
       {leaders.length === 0 ? <EmptyState title="No admin accounts" /> : null}
       {leaders.map((l) => (
         <Card key={l.id}>
-          <CardHeader>
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              {l.firstName} {l.lastName}
-              {l.showOnPublicSite ? <Badge>Public</Badge> : <Badge variant="outline">Hidden</Badge>}
-            </CardTitle>
-            <CardDescription>{l.leadershipTitle ?? "No title yet"}</CardDescription>
+          <CardHeader className="flex flex-row items-start gap-4">
+            <UserAvatar user={l} size="lg" />
+            <div className="min-w-0 flex-1">
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                {l.firstName} {l.lastName}
+                {l.showOnPublicSite ? <Badge>Public</Badge> : <Badge variant="outline">Hidden</Badge>}
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {l.leadershipTitle ?? "No title yet"}
+                {l.showOnPublicSite ? (
+                  <>
+                    {" · "}
+                    <Link href={`/team/${l.id}`} className="underline underline-offset-4 hover:text-foreground">
+                      View public page
+                    </Link>
+                  </>
+                ) : null}
+              </CardDescription>
+              {!l.photoKey ? (
+                <p className="mt-1 text-xs text-muted-foreground">No photo yet. Photos are uploaded by each person on their own account page.</p>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent>
             <LeadershipProfileForm leader={l} />
@@ -114,7 +131,8 @@ async function PartnersTab() {
             <CardTitle>{p.name}</CardTitle>
             {p.url ? <CardDescription><a href={p.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">{p.url}</a></CardDescription> : null}
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-5">
+            <PartnerLogoForm partner={p} />
             <PartnerForm partner={p} />
           </CardContent>
         </Card>

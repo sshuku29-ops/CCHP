@@ -2,8 +2,8 @@ import { CmsProvider } from "@/components/cms/cms-provider";
 import { EditBar } from "@/components/cms/edit-bar";
 import { SiteHeader } from "@/components/public/site-header";
 import { SiteFooter } from "@/components/public/site-footer";
-import { canEditContent } from "@/lib/cms/content";
-import { getSiteSettings } from "@/lib/public/queries";
+import { canEditContent, getContent } from "@/lib/cms/content";
+import { getLogo, getSiteSettings } from "@/lib/public/queries";
 
 // Public pages show live program numbers and admin-editable text, so they
 // are rendered per request rather than frozen at build time.
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * admin edit bar (only visible to signed-in admins), the header and the footer.
  */
 export default async function PublicLayout({ children }: LayoutProps<"/">) {
-  const [settings, canEdit] = await Promise.all([getSiteSettings(), canEditContent()]);
+  const [settings, canEdit, fullName, colbyLogo] = await Promise.all([getSiteSettings(), canEditContent(), getContent("site.fullName"), getLogo("Colby")]);
   return (
     <CmsProvider canEdit={canEdit}>
       <div className="flex min-h-full flex-1 flex-col bg-background text-foreground">
@@ -25,11 +25,11 @@ export default async function PublicLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <EditBar />
-        <SiteHeader />
+        <SiteHeader fullName={fullName} />
         <main id="content" className="flex-1">
           {children}
         </main>
-        <SiteFooter settings={settings} />
+        <SiteFooter settings={settings} colbyLogoKey={colbyLogo?.fileKey ?? null} />
       </div>
     </CmsProvider>
   );

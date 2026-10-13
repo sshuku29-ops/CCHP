@@ -21,7 +21,7 @@ export async function getSiteSettings(): Promise<Record<SiteSettingKey, string>>
 export async function listLeadership() {
   const people = await db.user.findMany({
     where: { role: { in: ["ADMIN", "MAIN_ADMIN"] }, isActive: true },
-    select: { id: true, firstName: true, lastName: true, role: true, leadershipTitle: true, bio: true, photoUrl: true, showOnPublicSite: true },
+    select: { id: true, firstName: true, lastName: true, role: true, leadershipTitle: true, bio: true, photoUrl: true, photoKey: true, showOnPublicSite: true },
   });
   const rank = (t: string | null) => {
     const i = t ? (LEADERSHIP_ROLES as readonly string[]).indexOf(t) : -1;

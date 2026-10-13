@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CreateUserForm } from "@/components/admin/create-user-form";
+import { UserAvatar } from "@/components/shared/user-avatar";
 
 export const metadata = { title: "Users & roles" };
 
@@ -53,8 +54,9 @@ export default async function UsersPage() {
                   {users.map((u) => (
                     <TableRow key={u.id} className={u.isActive ? "" : "opacity-60"}>
                       <TableCell className="font-medium whitespace-nowrap">
-                        <Link href={`/settings/users/${u.id}`} className="hover:underline underline-offset-4">
-                          {u.firstName} {u.lastName}
+                        <Link href={`/settings/users/${u.id}`} className="inline-flex items-center gap-2 hover:underline underline-offset-4">
+                          <UserAvatar user={u} size="sm" />
+                          <span>{u.firstName} {u.lastName}</span>
                         </Link>
                         {u.id === me.id ? <span className="ml-1 text-xs text-muted-foreground">(you)</span> : null}
                       </TableCell>

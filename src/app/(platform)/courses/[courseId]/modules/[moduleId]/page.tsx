@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CircleCheck, ExternalLink } from "lucide-react";
+import { CircleCheck, ExternalLink, FileText, BookOpen } from "lucide-react";
 import { requireUser } from "@/lib/auth/guards";
 import { getModule, canManageLms } from "@/lib/lms/queries";
+import { listPagesForSelect, listDocumentsForSelect } from "@/lib/library/queries";
+import { documentUrl } from "@/lib/documents";
 import { toggleModuleCompletion, deleteResource, deleteVideo, deleteAssignment, deleteModule, deleteQuiz } from "@/lib/lms/actions";
 import { fmtDate, isOverdue } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
-import { Markdown } from "@/components/shared/markdown";
+import { RichText } from "@/components/editor/rich-text";
 import { YouTubeEmbed } from "@/components/shared/youtube-embed";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SubmitButton } from "@/components/shared/submit-button";
@@ -35,6 +37,8 @@ export default async function ModulePage(props: PageProps<"/courses/[courseId]/m
   if (!mod) notFound();
   const manage = canManageLms(user);
   const base = `/courses/${courseId}/modules/${moduleId}`;
+  // Options for the admin "Add a resource" form (library pages + library files).
+  const [pageOptions, documentOptions] = manage ? await Promise.all([listPagesForSelect(), listDocumentsForSelect()]) : [[], []];
 
   // A small dashed box that wraps every "add something" form so they look alike.
   const addBox = (title: string, children: ReactNode) => (
@@ -91,7 +95,7 @@ export default async function ModulePage(props: PageProps<"/courses/[courseId]/m
               <CardTitle>Instructions</CardTitle>
             </CardHeader>
             <CardContent>
-              <Markdown source={mod.instructions} />
+              <RichText source={mod.instructions} />
             </CardContent>
           </Card>
         ) : manage ? (
@@ -124,42 +128,76 @@ export default async function ModulePage(props: PageProps<"/courses/[courseId]/m
           </Card>
         ) : null}
 
-        {/* ── Resources ── */}
+        {/* ── Resources (library pages + files; everything stays on the platform) ── */}
         {mod.resources.length > 0 || manage ? (
           <Card>
             <CardHeader>
               <CardTitle>Resources</CardTitle>
-              {manage ? <CardDescription>Links to docs, slides, checklists, articles.</CardDescription> : null}
+              {manage ? <CardDescription>Library pages and uploaded files. Volunteers never leave the platform to read them.</CardDescription> : null}
             </CardHeader>
             <CardContent className="space-y-4">
               {mod.resources.length > 0 ? (
                 <ul className="space-y-2">
-                  {mod.resources.map((r) => (
-                    <li key={r.id} className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <a href={r.url ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
-                          {r.label}
-                          <ExternalLink className="size-3.5 text-muted-foreground" />
-                        </a>
-                        {manage ? (
-                          <ConfirmButton action={deleteResource.bind(null, r.id)} message={`Remove "${r.label}"?`} size="xs" variant="ghost" className="text-destructive">
-                            Remove
-                          </ConfirmButton>
+                  {mod.resources.map((r) => {
+                    const isPdf = r.document?.kind === "PDF";
+                    return (
+                      <li key={r.id} className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          {r.page ? (
+                            // Internal library page
+                            <Link href={`/library/${r.page.slug}`} className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
+                              <BookOpen className="size-3.5 text-muted-foreground" />
+                              {r.label}
+                              {!r.page.isPublished ? <Badge variant="outline" className="ml-1 text-[10px]">Draft</Badge> : null}
+                            </Link>
+                          ) : r.document ? (
+                            // Uploaded file, served through the access-checked file route (opens in a new tab)
+                            <a href={documentUrl(r.document)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
+                              <FileText className="size-3.5 text-muted-foreground" />
+                              {r.label}
+                              <span className="text-xs text-muted-foreground">({r.document.fileName})</span>
+                            </a>
+                          ) : r.url ? (
+                            // Legacy external link (older rows only; new resources cannot be external)
+                            <a href={r.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
+                              {r.label}
+                              <ExternalLink className="size-3.5 text-muted-foreground" />
+                              <Badge variant="outline" className="ml-1 text-[10px]">external</Badge>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                              {r.label}
+                              <Badge variant="outline" className="ml-1 text-[10px]">missing</Badge>
+                            </span>
+                          )}
+                          {manage ? (
+                            <ConfirmButton action={deleteResource.bind(null, r.id)} message={`Remove "${r.label}"?`} size="xs" variant="ghost" className="text-destructive">
+                              Remove
+                            </ConfirmButton>
+                          ) : null}
+                        </div>
+                        {isPdf && r.document ? (
+                          <details className="rounded-lg border px-3 py-2">
+                            <summary className="cursor-pointer select-none text-xs text-muted-foreground">Preview</summary>
+                            <div className="pt-2">
+                              <iframe src={documentUrl(r.document)} title={r.label} className="h-[70vh] w-full rounded-md border bg-white" />
+                            </div>
+                          </details>
                         ) : null}
-                      </div>
-                      {manage ? (
-                        <details className="rounded-lg border px-3 py-2">
-                          <summary className="cursor-pointer select-none text-xs text-muted-foreground">Edit link</summary>
-                          <div className="pt-2">
-                            <ResourceEditForm resource={{ id: r.id, label: r.label, url: r.url ?? "" }} />
-                          </div>
-                        </details>
-                      ) : null}
-                    </li>
-                  ))}
+                        {manage ? (
+                          <details className="rounded-lg border px-3 py-2">
+                            <summary className="cursor-pointer select-none text-xs text-muted-foreground">Edit label</summary>
+                            <div className="pt-2">
+                              <ResourceEditForm resource={{ id: r.id, label: r.label }} />
+                            </div>
+                          </details>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : null}
-              {manage ? addBox("Add a resource", <ResourceAddForm moduleId={mod.id} />) : null}
+              {manage ? addBox("Add a resource", <ResourceAddForm moduleId={mod.id} pages={pageOptions} documents={documentOptions} />) : null}
             </CardContent>
           </Card>
         ) : null}

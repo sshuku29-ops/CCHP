@@ -3,11 +3,11 @@ import { Editable } from "@/components/cms/editable";
 import type { PublicSettings } from "@/lib/public/queries";
 
 /** Footer for every public page. Hidden when printing. */
-export function SiteFooter({ settings }: { settings: PublicSettings }) {
+export function SiteFooter({ settings, colbyLogoKey }: { settings: PublicSettings; colbyLogoKey: string | null }) {
   const year = new Date().getFullYear();
   return (
     <footer className="print:hidden border-t bg-muted/40">
-      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 md:grid-cols-3">
+      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 md:grid-cols-4">
         <div>
           <p className="font-heading text-lg font-semibold">CCHP</p>
           <Editable k="site.fullName" as="p" className="text-sm text-muted-foreground mt-1" />
@@ -58,6 +58,16 @@ export function SiteFooter({ settings }: { settings: PublicSettings }) {
               </Link>
             </li>
           </ul>
+        </div>
+
+        {/* Colby affiliation. The logo is the Document with category LOGO whose title contains "Colby".
+            data-approval="pending": use of the Colby College logo still needs the College's OK. */}
+        <div className="text-sm md:text-right" data-approval="pending">
+          {colbyLogoKey ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={`/api/files/${colbyLogoKey}`} alt="Colby College" className="inline-block h-12 w-auto object-contain" loading="lazy" />
+          ) : null}
+          <Editable k="footer.colby" as="p" className="mt-2 text-muted-foreground" />
         </div>
       </div>
       <div className="border-t">

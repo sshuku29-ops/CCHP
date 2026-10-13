@@ -1,4 +1,5 @@
 import { Editable } from "@/components/cms/editable";
+import { PartnerLogo } from "@/components/public/partner-logo";
 import { ManageLink, PageTitle, Section } from "@/components/public/section";
 import { canEditContent } from "@/lib/cms/content";
 import { getPartners } from "@/lib/public/queries";
@@ -24,6 +25,11 @@ export default async function PartnersPage() {
         <ul className="mt-10 grid gap-4 md:grid-cols-2">
           {partners.map((p) => (
             <li key={p.id} className="rounded-lg border bg-card p-5">
+              {p.logoKey ? (
+                <div className="mb-4 flex h-16 items-center">
+                  <PartnerLogo logoKey={p.logoKey} name={p.name} />
+                </div>
+              ) : null}
               <h2 className="font-heading text-xl font-semibold">{p.name}</h2>
               {p.description ? <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{p.description}</p> : null}
               {p.url ? (

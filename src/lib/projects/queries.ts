@@ -28,13 +28,15 @@ export const taskRowSelect = {
   status: true,
   priority: true,
   needsOwner: true,
+  isPersonal: true,
+  createdById: true,
   startDate: true,
   dueDate: true,
   completedAt: true,
   createdAt: true,
   sortOrder: true,
   project: { select: { id: true, title: true, color: true } },
-  assignees: { select: { user: { select: { id: true, firstName: true, lastName: true } } } },
+  assignees: { select: { user: { select: { id: true, firstName: true, lastName: true, photoKey: true } } } },
 } satisfies Prisma.TaskSelect;
 
 export type TaskRow = Prisma.TaskGetPayload<{ select: typeof taskRowSelect }>;
@@ -173,6 +175,12 @@ export type TaskFilters = {
   needsOwner?: boolean;
   /** Only tasks assigned to this user (volunteer restriction or the "mine" toggle). */
   onlyAssignedTo?: string;
+  /**
+   * Volunteer view: tasks assigned to this user PLUS personal tasks they created.
+   * (Personal tasks are assigned to their creator anyway, but we spell it out so
+   * the rule is obvious and survives future changes.)
+   */
+  visibleToVolunteer?: string;
 };
 
 export async function listTasks(filters: TaskFilters = {}): Promise<TaskRow[]> {
@@ -189,8 +197,24 @@ export async function listTasks(filters: TaskFilters = {}): Promise<TaskRow[]> {
   }
   const assignee = filters.onlyAssignedTo ?? filters.assigneeId;
   if (assignee) where.assignees = { some: { userId: assignee } };
+  if (filters.visibleToVolunteer) {
+    const uid = filters.visibleToVolunteer;
+    where.OR = [{ assignees: { some: { userId: uid } } }, { isPersonal: true, createdById: uid }];
+  }
   return db.task.findMany({
     where,
+    select: taskRowSelect,
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+  });
+}
+
+/**
+ * "Unclaimed" tasks: flagged as needing an owner, nobody assigned, not done.
+ * Shown to everyone (volunteers too) so anyone can pick one up.
+ */
+export async function listUnclaimedTasks(): Promise<TaskRow[]> {
+  return db.task.findMany({
+    where: { needsOwner: true, isPersonal: false, status: { not: "DONE" }, assignees: { none: {} } },
     select: taskRowSelect,
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
@@ -203,7 +227,7 @@ export async function getTask(id: string) {
     include: {
       project: { select: { id: true, title: true, color: true, status: true } },
       createdBy: { select: { firstName: true, lastName: true } },
-      assignees: { select: { user: { select: { id: true, firstName: true, lastName: true } } } },
+      assignees: { select: { user: { select: { id: true, firstName: true, lastName: true, photoKey: true } } } },
       links: { orderBy: { label: "asc" } },
       comments: {
         include: { author: { select: { id: true, firstName: true, lastName: true } } },
@@ -281,15 +305,20 @@ export async function getAdminDashboard(now = new Date()) {
 
 export async function getVolunteerDashboard(userId: string, now = new Date()) {
   const termStart = termStartDate(now);
-  const [tasks, hoursTerm, hoursAll, courses] = await Promise.all([
+  const [tasks, hoursTerm, hoursAll, courses, unclaimedCount] = await Promise.all([
     db.task.findMany({
-      where: { assignees: { some: { userId } }, status: { not: "DONE" } },
+      where: {
+        status: { not: "DONE" },
+        OR: [{ assignees: { some: { userId } } }, { isPersonal: true, createdById: userId }],
+      },
       select: taskRowSelect,
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
     }),
     db.hoursLog.aggregate({ where: { userId, date: { gte: termStart } }, _sum: { hours: true } }),
     db.hoursLog.aggregate({ where: { userId }, _sum: { hours: true } }),
     db.course.count({ where: { isPublished: true } }),
+    // Open tasks nobody owns yet — the volunteer could claim one of these.
+    db.task.count({ where: { needsOwner: true, isPersonal: false, status: { not: "DONE" }, assignees: { none: {} } } }),
   ]);
   return {
     openTasks: tasks.sort(byDueDate),
@@ -297,6 +326,7 @@ export async function getVolunteerDashboard(userId: string, now = new Date()) {
     hoursThisTerm: hoursTerm._sum.hours ?? 0,
     hoursAllTime: hoursAll._sum.hours ?? 0,
     coursesCount: courses,
+    unclaimedCount,
   };
 }
 
@@ -319,6 +349,7 @@ export async function tasksForExport() {
     status: t.status,
     priority: t.priority,
     needsOwner: t.needsOwner ? "yes" : "no",
+    personal: t.isPersonal ? "yes" : "no",
     assignees: t.assignees.map((a) => `${a.user.firstName} ${a.user.lastName}`).join("; "),
     startDate: t.startDate,
     dueDate: t.dueDate,

@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { Download, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth/guards";
-import { canManageProjects, listActiveUsers, listProjectOptions, listTasks } from "@/lib/projects/queries";
+import { canManageProjects, listActiveUsers, listProjectOptions, listTasks, listUnclaimedTasks } from "@/lib/projects/queries";
 import { parseDateInput } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PersonalTaskForm } from "@/components/projects/personal-task-form";
+import { UnclaimedTasks } from "@/components/projects/unclaimed-tasks";
 import { TaskFilters, type TaskFilterValues } from "@/components/projects/task-filters";
 import { TaskViews } from "@/components/projects/task-views";
 import { ViewTabs, parseView } from "@/components/projects/view-tabs";
@@ -35,15 +38,21 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
       }
     : { status: str(sp.status), view: sp.view === "list" ? undefined : str(sp.view) };
 
-  const tasks = await listTasks({
-    status: values.status,
-    projectId: values.projectId,
-    assigneeId: values.assigneeId,
-    dueFrom: parseDateInput(values.dueFrom),
-    dueTo: parseDateInput(values.dueTo),
-    needsOwner: values.needsOwner === "1",
-    onlyAssignedTo: !manager || values.mine === "1" ? user.id : undefined,
-  });
+  // Volunteers see tasks assigned to them plus their own personal tasks.
+  // Admins see everything (personal tasks carry a "Personal" badge).
+  const [tasks, unclaimed] = await Promise.all([
+    listTasks({
+      status: values.status,
+      projectId: values.projectId,
+      assigneeId: values.assigneeId,
+      dueFrom: parseDateInput(values.dueFrom),
+      dueTo: parseDateInput(values.dueTo),
+      needsOwner: values.needsOwner === "1",
+      onlyAssignedTo: manager && values.mine === "1" ? user.id : undefined,
+      visibleToVolunteer: manager ? undefined : user.id,
+    }),
+    listUnclaimedTasks(),
+  ]);
 
   const [projects, users] = manager ? await Promise.all([listProjectOptions(), listActiveUsers()]) : [[], []];
 
@@ -51,7 +60,7 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
     <div className="space-y-4">
       <PageHeader
         title={manager ? "All tasks" : "My tasks"}
-        description={manager ? "Every task across projects. Filter, then switch between list, board and timeline." : "Tasks assigned to you. Update the status as you go."}
+        description={manager ? "Every task across projects. Filter, then switch between list, board and timeline." : "Tasks assigned to you plus your own personal to-dos. Update the status as you go."}
         actions={
           manager ? (
             <>
@@ -69,6 +78,28 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
           ) : null
         }
       />
+
+      {/* Open tasks nobody owns — anyone can claim one. */}
+      <UnclaimedTasks tasks={unclaimed} />
+
+      {/* Volunteers add private to-dos here; admins use the full form at /tasks/new. */}
+      {!manager ? (
+        <details className="group rounded-xl border bg-card">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
+            <Plus className="mr-1.5 inline size-4 align-text-bottom" />
+            New task (just for you)
+          </summary>
+          <Card size="sm" className="rounded-t-none ring-0 border-t">
+            <CardHeader>
+              <CardTitle>Personal task</CardTitle>
+              <CardDescription>Only you and leadership can see it. It shows up in your list below.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <PersonalTaskForm />
+            </CardContent>
+          </Card>
+        </details>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ViewTabs basePath="/tasks" view={view} params={{ ...values, view: undefined }} />

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Editable } from "@/components/cms/editable";
-import { InitialsAvatar } from "@/components/public/initials-avatar";
+import { PartnerLogo } from "@/components/public/partner-logo";
+import { PersonAvatar } from "@/components/public/person-avatar";
 import { Container, ManageLink, Section, SectionHeading } from "@/components/public/section";
 import { StatTile } from "@/components/public/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { canEditContent } from "@/lib/cms/content";
 import { fmtDate } from "@/lib/dates";
-import { getLeadershipProfiles, getPartners, getPublicStats } from "@/lib/public/queries";
+import { getLeadershipProfiles, getLogo, getPartners, getPublicStats } from "@/lib/public/queries";
 
 export const metadata = {
   title: "CCHP — Colby Community Health Program",
@@ -18,7 +19,13 @@ export const metadata = {
 const STEP_KEYS = ["home.how.step1", "home.how.step2", "home.how.step3", "home.how.step4", "home.how.step5"];
 
 export default async function HomePage() {
-  const [stats, leaders, partners, canEdit] = await Promise.all([getPublicStats(), getLeadershipProfiles(6), getPartners(), canEditContent()]);
+  const [stats, leaders, partners, mmhsLogo, canEdit] = await Promise.all([
+    getPublicStats(),
+    getLeadershipProfiles(6),
+    getPartners(),
+    getLogo("Mid-Maine"),
+    canEditContent(),
+  ]);
 
   return (
     <>
@@ -101,20 +108,51 @@ export default async function HomePage() {
         </div>
       </Section>
 
+      {/* Where we work: the shelter, with the three numbers that matter most */}
+      <Section className="border-t bg-muted/30" ariaLabelledBy="where-title">
+        <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-start">
+          <div className="max-w-3xl">
+            <Editable k="home.where.heading" as="h2" className="font-heading text-2xl font-semibold tracking-tight md:text-3xl" />
+            <Editable k="home.where.body" as="p" className="mt-3 text-muted-foreground leading-relaxed" multiline />
+            <dl className="mt-6 grid grid-cols-3 gap-4 max-w-md">
+              {[
+                { n: stats.formalSessions, k: "home.where.stat.sessions" },
+                { n: stats.participants, k: "home.where.stat.visits" },
+                { n: stats.volunteerHours, k: "home.where.stat.hours" },
+              ].map((m) => (
+                <div key={m.k}>
+                  <dd className="font-heading text-2xl font-semibold tabular-nums md:text-3xl">{m.n.toLocaleString("en-US")}</dd>
+                  <Editable k={m.k} as="dt" className="mt-0.5 text-sm text-muted-foreground" />
+                </div>
+              ))}
+            </dl>
+          </div>
+          {mmhsLogo ? (
+            <div className="rounded-lg border bg-card p-4 md:w-56">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/files/${mmhsLogo.fileKey}`} alt="Mid-Maine Homeless Shelter" className="mx-auto max-h-24 w-auto object-contain" loading="lazy" />
+              <Editable k="home.where.caption" as="p" className="mt-3 text-center text-xs text-muted-foreground" />
+            </div>
+          ) : null}
+        </div>
+      </Section>
+
       {/* Leadership preview */}
       {leaders.length > 0 ? (
         <Section className="border-t" ariaLabelledBy="team-title">
           <SectionHeading headingKey="home.team.heading" introKey="home.team.intro" id="team-title" manageHref="/site-content?tab=leadership" canEdit={canEdit} />
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {leaders.map((p) => (
-              <li key={p.id} className="flex items-center gap-4 rounded-lg border bg-card p-4">
-                <InitialsAvatar firstName={p.firstName} lastName={p.lastName} photoUrl={p.photoUrl} />
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {p.firstName} {p.lastName}
-                  </p>
-                  {p.leadershipTitle ? <p className="text-sm text-muted-foreground">{p.leadershipTitle}</p> : null}
-                </div>
+              <li key={p.id}>
+                <Link href={`/team/${p.id}`} className="flex items-center gap-4 rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50">
+                  <PersonAvatar person={p} size="lg" />
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {p.firstName} {p.lastName}
+                    </p>
+                    {p.leadershipTitle ? <p className="text-sm text-muted-foreground">{p.leadershipTitle}</p> : null}
+                  </div>
+                </Link>
               </li>
             ))}
           </ul>
@@ -129,18 +167,30 @@ export default async function HomePage() {
       {partners.length > 0 || canEdit ? (
         <Section className="border-t" ariaLabelledBy="partners-title">
           <SectionHeading headingKey="home.partners.heading" introKey="home.partners.intro" id="partners-title" manageHref="/site-content?tab=partners" canEdit={canEdit} />
-          <ul className="flex flex-wrap gap-3">
-            {partners.map((p) => (
-              <li key={p.id} className="rounded-md border bg-card px-4 py-2 text-sm font-medium">
-                {p.url ? (
-                  <a href={p.url} target="_blank" rel="noopener noreferrer" className="hover:underline underline-offset-4">
-                    {p.name}
-                  </a>
-                ) : (
-                  p.name
-                )}
-              </li>
-            ))}
+          <ul className="grid gap-4 sm:grid-cols-3">
+            {partners.map((p) => {
+              const inner = (
+                <>
+                  {p.logoKey ? (
+                    <div className="flex h-20 items-center justify-center">
+                      <PartnerLogo logoKey={p.logoKey} name={p.name} />
+                    </div>
+                  ) : null}
+                  <span className="mt-3 block text-sm font-medium">{p.name}</span>
+                </>
+              );
+              return (
+                <li key={p.id} className="rounded-lg border bg-card p-4 text-center">
+                  {p.url ? (
+                    <a href={p.url} target="_blank" rel="noopener noreferrer" className="block hover:underline underline-offset-4">
+                      {inner}
+                    </a>
+                  ) : (
+                    inner
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <Link href="/partners" className="mt-6 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
             <Editable k="home.partners.link" as="span" />

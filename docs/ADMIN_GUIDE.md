@@ -126,6 +126,19 @@ resource**, **Add an assignment**, and **Create a quiz** directly on the module 
 multiple choice with a pass mark; volunteers can retake them, and passing every quiz in a module marks
 it complete. Results per quiz are under the quiz's **Results** link.
 
+## 8d. Round-3 features in one paragraph each
+
+- **Meeting notes** (`/notes`): one note per meeting with a basic text editor (fonts, sizes, colors, lists). Past notes from the Drive are imported. Recording + transcription is planned (see `docs/MEETING_RECORDING_PLAN.md`).
+- **Library** (`/library`): pages and files that training modules point to. Any admin can edit pages. Nothing links out to Google Docs anymore.
+- **Session materials**: open a session → Materials. Upload brochures, slide PDFs, volunteer photos; PDFs display inline. "Public" makes a file visible on the public Impact page.
+- **Roster** (`/sessions/roster`): assign volunteers to upcoming sessions; volunteers see their sessions on the dashboard and get a reminder the day before.
+- **Informal sessions**: dashboard → "Log an informal session" (also `/sessions/informal/new`); it logs hours for the volunteers you tick.
+- **Certificates** (`/certificates`): per term, generate PDFs for everyone with hours (Executive Director or Main Admin only), or issue one manually. Volunteers download theirs under Hours.
+- **Tasks**: anyone can create a personal task; admins can leave tasks unclaimed and anyone can Claim them.
+- **Photos**: everyone is asked for a photo on first login; it shows everywhere. Leaders' photos appear on the public Team page with a full profile page each.
+- **Phones**: admins get a read-only view on phones (a notice explains it); volunteers can log hours from a phone.
+- **SMS**: off unless a provider is configured and the person opted in (My account).
+
 ## 9. Common tasks
 
 | Task | Where |

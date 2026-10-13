@@ -183,3 +183,17 @@
 .ql-content .ql-indent-1 { padding-left: 2em; } .ql-content .ql-indent-2 { padding-left: 4em; } .ql-content .ql-indent-3 { padding-left: 6em; }
 .ql-content img { max-width: 100%; height: auto; border-radius: 6px; }
 .ql-content table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; } .ql-content td, .ql-content th { border: 1px solid var(--border); padding: 4px 8px; }
+
+/* ---- Read-only phone view for admins (see src/components/platform/mobile-notice.tsx) ----
+   The platform shell adds `.platform-readonly` for Admin / Main Admin accounts.
+   Under 768px every form and submit button is dimmed and ignores taps, except
+   elements marked data-allow-mobile (sign-out, search/filter forms, navigation).
+   Volunteers never get the class, so they can still log hours from a phone. */
+@media (max-width: 767px) {
+  .platform-readonly form:not([data-allow-mobile]):not([data-allow-mobile] *),
+  .platform-readonly button[type="submit"]:not([data-allow-mobile]):not([data-allow-mobile] *) {
+    pointer-events: none;
+    opacity: 0.5;
+    user-select: none;
+  }
+}

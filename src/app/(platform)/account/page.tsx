@@ -5,8 +5,9 @@ import { ROLE_LABELS, type Role } from "@/lib/constants";
 import { toDateInput } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountForm } from "./form";
+import { PhotoForm } from "./photo-form";
 
 export const metadata = { title: "My account" };
 
@@ -18,6 +19,8 @@ export default async function AccountPage() {
     select: {
       username: true,
       role: true,
+      firstName: true,
+      lastName: true,
       email: true,
       phone: true,
       graduationDate: true,
@@ -25,8 +28,12 @@ export default async function AccountPage() {
       publicHoursOptIn: true,
       leadershipTitle: true,
       bio: true,
-      photoUrl: true,
       showOnPublicSite: true,
+      photoKey: true,
+      pronouns: true,
+      major: true,
+      profileBody: true,
+      smsOptIn: true,
     },
   });
   const admin = isAdmin(session);
@@ -35,7 +42,7 @@ export default async function AccountPage() {
     <div className="max-w-2xl">
       <PageHeader
         title="My account"
-        description="Update your contact details and what is shown about you publicly."
+        description="Update your photo, contact details and what is shown about you publicly."
         actions={<Button variant="outline" size="sm" asChild><Link href="/change-password">Change password</Link></Button>}
       />
 
@@ -53,6 +60,16 @@ export default async function AccountPage() {
         </CardContent>
       </Card>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Photo</CardTitle>
+          <CardDescription>Shown next to your name across the platform so your team recognizes you.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PhotoForm user={{ firstName: user.firstName, lastName: user.lastName, photoKey: user.photoKey }} />
+        </CardContent>
+      </Card>
+
       <AccountForm
         admin={admin}
         initial={{
@@ -61,9 +78,12 @@ export default async function AccountPage() {
           graduationDate: toDateInput(user.graduationDate),
           hasVehicle: user.hasVehicle,
           publicHoursOptIn: user.publicHoursOptIn,
+          pronouns: user.pronouns ?? "",
+          major: user.major ?? "",
+          profileBody: user.profileBody ?? "",
+          smsOptIn: user.smsOptIn,
           leadershipTitle: user.leadershipTitle ?? "",
           bio: user.bio ?? "",
-          photoUrl: user.photoUrl ?? "",
           showOnPublicSite: user.showOnPublicSite,
         }}
       />

@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TASK_STATUS_LABELS, type TaskStatus } from "@/lib/constants";
 import type { TaskRow } from "@/lib/projects/queries";
-import { Assignees, DueDate, PriorityBadge, ProjectChip } from "./bits";
+import { Assignees, DueDate, PersonalBadge, PriorityBadge, ProjectChip } from "./bits";
 
 /** Compact table of tasks (the "list" view). Server component — no JS needed. */
 export function TaskTable({ tasks, showProject = true }: { tasks: TaskRow[]; showProject?: boolean }) {
@@ -31,6 +31,11 @@ export function TaskTable({ tasks, showProject = true }: { tasks: TaskRow[]; sho
                 <Link href={`/tasks/${t.id}`} className="hover:underline">
                   {t.title}
                 </Link>
+                {t.isPersonal ? (
+                  <span className="ml-1.5 inline-block align-middle">
+                    <PersonalBadge />
+                  </span>
+                ) : null}
                 {showProject && t.project ? (
                   <span className="mt-0.5 block text-xs text-muted-foreground md:hidden">{t.project.title}</span>
                 ) : null}

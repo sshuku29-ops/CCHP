@@ -7,11 +7,12 @@ import { db } from "@/lib/db";
 import { actionModule, actionMainAdmin } from "@/lib/auth/guards";
 import { audit } from "@/lib/audit";
 import { fieldErrorsFromZod, type ActionResult } from "@/lib/action-result";
+import { cleanHtml } from "@/lib/html/sanitize";
 import { canEditHandoff } from "./queries";
 
-const MAX_CONTENT = 200_000; // ~200 KB of markdown is plenty for one role
+const MAX_CONTENT = 500_000; // ~500 KB of HTML is plenty for one role
 
-/** Save the markdown body. Allowed for the owner or a Main Admin. */
+/** Save the body (HTML from the rich text editor, sanitized). Allowed for the owner or a Main Admin. */
 export async function saveHandoffContentAction(id: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
   const user = await actionModule("handoff");
   const doc = await db.handoffDoc.findUnique({ where: { id }, select: { ownerId: true } });
@@ -19,7 +20,8 @@ export async function saveHandoffContentAction(id: string, _prev: ActionResult, 
   if (!canEditHandoff(user, doc)) return { error: "Only this role's owner or a Main Admin can edit it." };
   const parsed = z.string().max(MAX_CONTENT, "That document is too long.").safeParse(formData.get("content") ?? "");
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid content." };
-  await db.handoffDoc.update({ where: { id }, data: { content: parsed.data, updatedById: user.id } });
+  const content = cleanHtml(parsed.data);
+  await db.handoffDoc.update({ where: { id }, data: { content, updatedById: user.id } });
   await audit(user.id, "handoff.update", id);
   revalidatePath("/handoff");
   revalidatePath(`/handoff/${id}`);
@@ -41,8 +43,16 @@ export async function setHandoffOwnerAction(id: string, _prev: ActionResult, for
   return { ok: true, message: "Owner updated." };
 }
 
+/** Starting content for a new doc (HTML, matching what the rich text editor produces). */
 const TEMPLATE = (roleTitle: string) =>
-  `# ${roleTitle} — handoff notes\n\n## What this role owns\n\n_(fill in)_\n\n## Recurring tasks\n\n- \n\n## Key contacts\n\n- \n\n## Email templates\n\n_(paste templates here)_\n\n## Advice for your successor\n\n`;
+  [
+    `<h1>${roleTitle.replace(/[<>&]/g, "")} — handoff notes</h1>`,
+    "<h2>What this role owns</h2><p><em>(fill in)</em></p>",
+    "<h2>Recurring tasks</h2><ul><li>&nbsp;</li></ul>",
+    "<h2>Key contacts</h2><ul><li>&nbsp;</li></ul>",
+    "<h2>Email templates</h2><p><em>(paste templates here)</em></p>",
+    "<h2>Advice for your successor</h2><p><br></p>",
+  ].join("");
 
 /** Main Admin: create a doc for a new role title. Redirects to the new doc. */
 export async function createHandoffDocAction(_prev: ActionResult, formData: FormData): Promise<ActionResult> {

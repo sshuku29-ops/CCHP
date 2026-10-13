@@ -118,4 +118,22 @@ export const CONTENT_DEFAULTS: Record<string, string> = {
   "contact.apply.button": "Go to the Apply page",
   "contact.where.heading": "Where we are",
   "contact.where.body": "CCHP is based at Colby College. Sessions take place at the Mid-Maine Homeless Shelter in Waterville, Maine.",
+  // ---- Round 3: Colby affiliation, where we work, profiles, brochures ----
+  "footer.colby": "A student program at Colby College",
+  "home.where.heading": "Where we work",
+  "home.where.body":
+    "Every session happens at the Mid-Maine Homeless Shelter in Waterville, a short drive from campus. Shelter staff help us choose topics; we bring the research, the conversation and the brochures.",
+  "home.where.stat.sessions": "Formal sessions",
+  "home.where.stat.visits": "Participant visits",
+  "home.where.stat.hours": "Volunteer hours",
+  "home.where.caption": "Mid-Maine Homeless Shelter, Waterville",
+  "team.leadership.readMore": "Full profile",
+  "profile.back": "Back to the team",
+  "profile.sessions.label": "Sessions led or supported",
+  "profile.sessions.note": "Counted from CCHP session records.",
+  "impact.brochures.heading": "Brochures & handouts",
+  "impact.brochures.intro": "Every formal session comes with a plain-language take-home brochure. The ones below are shared publicly.",
+  "impact.brochures.empty": "Brochures will be posted here as sessions are recorded.",
+  "impact.brochures.open": "Open PDF",
+  "impact.poster.heading": "Recruitment poster",
 };

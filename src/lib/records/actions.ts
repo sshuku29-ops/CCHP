@@ -10,6 +10,8 @@ import { parseCsv } from "@/lib/csv";
 import { SESSION_TYPES } from "@/lib/constants";
 import { academicYearForDate, parseDateInput, termForDate } from "@/lib/dates";
 import { fieldErrorsFromZod, type ActionResult } from "@/lib/action-result";
+import { validateUpload } from "@/lib/uploads";
+import { createDocumentFromFile, deleteDocument, DOCUMENT_CATEGORIES } from "@/lib/documents";
 import { runImport, type ImportKind, type ImportResult } from "./import";
 
 // ───────────────────────── Volunteer directory ─────────────────────────
@@ -160,6 +162,55 @@ export async function deleteSessionAction(id: string) {
   revalidatePath("/sessions");
   revalidatePath("/volunteers");
   redirect("/sessions?deleted=1");
+}
+
+// ───────────────────────── Session documents (uploaded files) ─────────────────────────
+
+const sessionDocumentSchema = z.object({
+  title: z.string().trim().max(200).optional().or(z.literal("")),
+  category: z.enum(DOCUMENT_CATEGORIES),
+});
+
+/**
+ * Upload a file (PDF, image, slides) and attach it to a session. The file is
+ * stored through src/lib/uploads.ts and a Document row is created so it can be
+ * shown inline on the session page and, when "public" is ticked, on the
+ * public website (brochures). Photos must only show volunteers, never residents.
+ */
+export async function uploadSessionDocumentAction(sessionId: string, _prev: ActionResult, formData: FormData): Promise<ActionResult> {
+  const admin = await actionModule("records");
+  const session = await db.sessionRecord.findUnique({ where: { id: sessionId }, select: { id: true } });
+  if (!session) return { error: "Session not found." };
+  const parsed = sessionDocumentSchema.safeParse({ title: formData.get("title"), category: formData.get("category") });
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { fieldErrors: { file: "Choose a file to upload." } };
+  const problem = validateUpload(file);
+  if (problem) return { fieldErrors: { file: problem } };
+  const doc = await createDocumentFromFile(file, {
+    title: parsed.data.title || undefined,
+    category: parsed.data.category,
+    isPublic: formData.get("isPublic") === "on",
+    sessionId,
+    uploadedById: admin.id,
+  });
+  await audit(admin.id, "session.document.uploaded", sessionId, { documentId: doc.id, category: doc.category });
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/impact");
+  return { ok: true, message: "File uploaded." };
+}
+
+/** Delete an uploaded file from a session (the stored file is removed too). */
+export async function deleteSessionDocumentAction(sessionId: string, documentId: string): Promise<ActionResult> {
+  const admin = await actionModule("records");
+  // Only delete documents that really belong to this session: never trust ids from the client alone.
+  const doc = await db.document.findFirst({ where: { id: documentId, sessionId }, select: { id: true } });
+  if (!doc) return { error: "File not found." };
+  await deleteDocument(doc.id);
+  await audit(admin.id, "session.document.deleted", sessionId, { documentId });
+  revalidatePath(`/sessions/${sessionId}`);
+  revalidatePath("/impact");
+  return { ok: true };
 }
 
 // ───────────────────────── CSV import ─────────────────────────

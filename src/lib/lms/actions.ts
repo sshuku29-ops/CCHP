@@ -9,6 +9,9 @@ import { SUBMISSION_TYPES } from "@/lib/constants";
 import { parseDateInput } from "@/lib/dates";
 import { isYouTubeUrl } from "@/lib/youtube";
 import { validateUpload, storeUpload } from "@/lib/uploads";
+import { cleanHtml } from "@/lib/html/sanitize";
+import { createDocumentFromFile } from "@/lib/documents";
+import { LIBRARY_FILE_CATEGORIES } from "@/lib/library/categories";
 import { notify } from "@/lib/notifications";
 import { audit } from "@/lib/audit";
 import { fieldErrorsFromZod, type ActionResult } from "@/lib/action-result";
@@ -55,11 +58,6 @@ const dateSchema = z
     }
     return d;
   });
-const httpUrl = z
-  .string()
-  .trim()
-  .url("Enter a full link starting with http:// or https://")
-  .refine((u) => /^https?:\/\//i.test(u), "Links must start with http:// or https://");
 const youtubeUrl = z
   .string()
   .trim()
@@ -105,10 +103,25 @@ export async function deleteCourse(courseId: string) {
 
 // ───────────────────────── Modules ─────────────────────────────
 
+/**
+ * Instructions come from <RichTextEditor name="instructions"> as HTML. We sanitize
+ * with cleanHtml() and store null when the editor is empty ("<p><br></p>").
+ */
+const richTextOrNull = (max: number) =>
+  z
+    .string()
+    .max(max, "Those instructions are too long.")
+    .optional()
+    .transform((v) => {
+      const html = cleanHtml(v ?? "");
+      const text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+      return text ? html : null;
+    });
+
 const moduleSchema = z.object({
   title: titleSchema,
   summary: optionalText(500),
-  instructions: optionalText(20000),
+  instructions: richTextOrNull(200_000),
   dueDate: dateSchema,
 });
 
@@ -165,28 +178,62 @@ export async function deleteModule(moduleId: string) {
 
 // ───────────────────────── Resources & videos ──────────────────
 
-const resourceSchema = z.object({
-  label: z.string().trim().min(1, "Label is required.").max(200),
-  url: httpUrl,
+/**
+ * Resources must stay on the platform: a resource is a library page, an uploaded
+ * document, or (only for legacy rows) an external URL. The "Add a resource" form
+ * sends `kind` = page | document | upload plus the matching field.
+ */
+const resourceLabel = z.string().trim().min(1, "Label is required.").max(200);
+const addResourceSchema = z.object({
+  moduleId: idSchema,
+  label: resourceLabel,
+  kind: z.enum(["page", "document", "upload"], { message: "Choose what kind of resource to add." }),
+  pageId: z.string().trim().optional(),
+  documentId: z.string().trim().optional(),
 });
 
 export async function addResource(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
-  await actionModule("lms");
-  const parsed = resourceSchema.extend({ moduleId: idSchema }).safeParse(Object.fromEntries(fd));
+  const user = await actionModule("lms");
+  const parsed = addResourceSchema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
-  const { moduleId, ...data } = parsed.data;
+  const { moduleId, label, kind } = parsed.data;
+
+  let pageId: string | null = null;
+  let documentId: string | null = null;
+  if (kind === "page") {
+    const page = parsed.data.pageId ? await db.libraryPage.findUnique({ where: { id: parsed.data.pageId }, select: { id: true } }) : null;
+    if (!page) return { fieldErrors: { pageId: "Pick a library page." } };
+    pageId = page.id;
+  } else if (kind === "document") {
+    const doc = parsed.data.documentId
+      ? await db.document.findFirst({ where: { id: parsed.data.documentId, category: { in: [...LIBRARY_FILE_CATEGORIES] } }, select: { id: true } })
+      : null;
+    if (!doc) return { fieldErrors: { documentId: "Pick a file from the library." } };
+    documentId = doc.id;
+  } else {
+    // Upload a new file: it becomes a TRAINING document attached to this module.
+    const file = fd.get("file");
+    if (!(file instanceof File) || file.size === 0) return { fieldErrors: { file: "Choose a file to upload." } };
+    const problem = validateUpload(file);
+    if (problem) return { fieldErrors: { file: problem } };
+    const doc = await createDocumentFromFile(file, { title: label, category: "TRAINING", moduleId, uploadedById: user.id });
+    documentId = doc.id;
+  }
+
   const last = await db.moduleResource.findFirst({ where: { moduleId }, orderBy: { order: "desc" }, select: { order: true } });
-  await db.moduleResource.create({ data: { ...data, moduleId, order: (last?.order ?? 0) + 1 } });
+  await db.moduleResource.create({ data: { moduleId, label, pageId, documentId, url: null, order: (last?.order ?? 0) + 1 } });
   revalidateCourses();
+  revalidatePath("/library");
   return { ok: true, message: "Resource added." };
 }
 
+/** Only the label can be edited; to change the target, remove the resource and add a new one. */
 export async function updateResource(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
   await actionModule("lms");
-  const parsed = resourceSchema.extend({ resourceId: idSchema }).safeParse(Object.fromEntries(fd));
+  const parsed = z.object({ resourceId: idSchema, label: resourceLabel }).safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
-  const { resourceId, ...data } = parsed.data;
-  await db.moduleResource.update({ where: { id: resourceId }, data });
+  const { resourceId, label } = parsed.data;
+  await db.moduleResource.update({ where: { id: resourceId }, data: { label } });
   revalidateCourses();
   return { ok: true, message: "Resource saved." };
 }

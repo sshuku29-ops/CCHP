@@ -31,7 +31,7 @@ export function TaskFilters({
 }) {
   const hasFilter = Object.entries(values).some(([k, v]) => k !== "view" && v);
   return (
-    <form method="get" action="/tasks" className="rounded-xl border bg-card p-3">
+    <form method="get" action="/tasks" className="rounded-xl border bg-card p-3" data-allow-mobile>
       {values.view ? <input type="hidden" name="view" value={values.view} /> : null}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <NativeSelect name="status" defaultValue={values.status ?? ""} aria-label="Status">

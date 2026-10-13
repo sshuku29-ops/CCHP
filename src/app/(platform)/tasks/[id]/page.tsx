@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
 import { canManageProjects, getTask, listActiveUsers, listProjectOptions } from "@/lib/projects/queries";
-import { deleteTask } from "@/lib/projects/actions";
+import { claimTask, deleteTask, releaseTask } from "@/lib/projects/actions";
 import { TASK_STATUS_LABELS, type TaskStatus } from "@/lib/constants";
 import { fmtDate, fmtDateTime } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,7 +10,8 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { ConfirmButton } from "@/components/shared/confirm-button";
 import { Markdown } from "@/components/shared/markdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DueDate, NeedsOwnerBadge, PriorityBadge, ProjectChip } from "@/components/projects/bits";
+import { Assignees, DueDate, NeedsOwnerBadge, PersonalBadge, PriorityBadge, ProjectChip } from "@/components/projects/bits";
+import { ActionButton } from "@/components/projects/action-button";
 import { TaskForm } from "@/components/projects/task-form";
 import { TaskStatusForm } from "@/components/projects/task-status-form";
 import { TaskLinks } from "@/components/projects/task-links";
@@ -24,10 +25,13 @@ export default async function TaskDetailPage({ params }: PageProps<"/tasks/[id]"
   const task = await getTask(id);
   if (!task) notFound();
 
-  // Admins with the projects module can open any task; everyone else only their own.
+  // Admins with the projects module can open any task; everyone else only their
+  // own (assigned to them, their personal tasks, or an unclaimed task they could claim).
   const manager = canManageProjects(user);
   const assignedToMe = task.assignees.some((a) => a.user.id === user.id);
-  if (!manager && !assignedToMe) redirect("/dashboard?denied=1");
+  const ownsPersonal = task.isPersonal && task.createdById === user.id;
+  const unclaimed = task.needsOwner && task.assignees.length === 0 && !task.isPersonal && task.status !== "DONE";
+  if (!manager && !assignedToMe && !ownsPersonal && !unclaimed) redirect("/dashboard?denied=1");
 
   const [projects, users] = manager ? await Promise.all([listProjectOptions(), listActiveUsers()]) : [[], []];
 
@@ -39,8 +43,19 @@ export default async function TaskDetailPage({ params }: PageProps<"/tasks/[id]"
         actions={
           <>
             <StatusBadge status={task.status} label={TASK_STATUS_LABELS[task.status as TaskStatus]} />
+            {task.isPersonal ? <PersonalBadge /> : null}
             {task.needsOwner && task.assignees.length === 0 ? <NeedsOwnerBadge /> : null}
-            {manager ? (
+            {unclaimed ? (
+              <ActionButton action={claimTask.bind(null, task.id)} size="sm">
+                Claim
+              </ActionButton>
+            ) : null}
+            {manager && !task.isPersonal && task.assignees.length > 0 && task.status !== "DONE" ? (
+              <ConfirmButton action={releaseTask.bind(null, task.id)} message="Release this task? Its assignees are removed and anyone can claim it." variant="outline" size="sm">
+                Release
+              </ConfirmButton>
+            ) : null}
+            {manager || ownsPersonal ? (
               <ConfirmButton action={deleteTask.bind(null, task.id)} message="Delete this task? Its comments and links go with it." variant="ghost" size="sm" className="text-destructive">
                 Delete
               </ConfirmButton>
@@ -61,7 +76,7 @@ export default async function TaskDetailPage({ params }: PageProps<"/tasks/[id]"
                 {task.assignees.length === 0 ? (
                   <span className="text-muted-foreground">Nobody yet</span>
                 ) : (
-                  task.assignees.map((a) => `${a.user.firstName} ${a.user.lastName}`).join(", ")
+                  <Assignees task={{ ...task, needsOwner: false }} full />
                 )}
               </Detail>
               <Detail label="Priority">
@@ -133,7 +148,7 @@ export default async function TaskDetailPage({ params }: PageProps<"/tasks/[id]"
                 />
               </CardContent>
             </Card>
-          ) : (
+          ) : assignedToMe ? (
             <Card>
               <CardHeader>
                 <CardTitle>Your status</CardTitle>
@@ -147,6 +162,15 @@ export default async function TaskDetailPage({ params }: PageProps<"/tasks/[id]"
                   </Link>
                   .
                 </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Unclaimed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Nobody owns this task yet. Claim it (button above) and it moves to your list.</p>
               </CardContent>
             </Card>
           )}

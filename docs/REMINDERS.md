@@ -1,19 +1,30 @@
-# Reminders and the email digest
+# Reminders, the email digest and text messages
 
-The platform sends two kinds of reminders:
+The platform sends three kinds of reminders:
 
 1. **In-app notifications** (the bell in the sidebar, `/notifications`)
    - `TASK_DUE` — a task assigned to you is due today, tomorrow or the day after
    - `TASK_OVERDUE` — a task assigned to you is past its due date and not done
    - `WAITING_ON` — an outreach item you own has waited longer than its "remind after N days"
-2. **One email digest per person per run**, listing their due/overdue tasks and,
-   for admins, overdue outreach follow-ups and sessions in the next 7 days.
-   People with nothing to report get no email. People without an email
-   address on their Account page get no email.
+   - `SESSION_REMINDER` — a formal/informal session you are signed up for
+     (as a session volunteer) is happening today or tomorrow
+   - `ASSIGNMENT_DUE` — a training assignment (in a published course) is due
+     within 2 days and you have not submitted anything yet. Kept simple on
+     purpose: it goes to **every active volunteer** without a submission.
+2. **One email digest per person per run**, listing their upcoming sessions,
+   due/overdue tasks, assignments due and, for admins, overdue outreach follow-ups
+   and sessions in the next 7 days. People with nothing to report get no email.
+   People without an email address on their Account page get no email.
+3. **Text messages (SMS)** — session reminders only, and only for people who
+   ticked **"Text me reminders"** on `/account` and have a phone number there.
+   Off by default. Each person gets at most **one text per session**. Every text
+   ends with "Reply STOP to opt out".
 
-Both are produced by one function: `runReminders()` in `src/lib/reminders/run.ts`.
+All three are produced by one function: `runReminders()` in `src/lib/reminders/run.ts`.
 Notifications are de-duplicated (no repeat while an identical unread one from the
-last 24 hours exists). Emails are **not** de-duplicated, so run the job **once a day**.
+last 24 hours exists). Texts are only sent when a brand-new session notification
+is created and no earlier one exists for that person + session. Emails are **not**
+de-duplicated, so run the job **once a day**.
 
 ## Running it
 
@@ -52,7 +63,7 @@ Example crontab line (daily at 8 AM server time):
 ```
 
 The route accepts GET and POST and answers with JSON like
-`{"ok":true,"ranAt":"...","taskDue":2,"taskOverdue":1,"waitingOn":0,"emails":3}`.
+`{"ok":true,"ranAt":"...","taskDue":2,"taskOverdue":1,"waitingOn":0,"sessionReminders":4,"assignmentDue":6,"emails":3,"sms":2}`.
 It returns 401 if the secret is wrong and 500 if `CRON_SECRET` is not configured.
 
 ### C. By hand
@@ -69,6 +80,9 @@ testing and for the day the cron forgot to run.
 | `EMAIL_PROVIDER` | `console` (default) or `resend`. See below. |
 | `EMAIL_FROM` | The From address, e.g. `CCHP <noreply@cchp.example.org>`. Must be a verified sender at your provider. |
 | `RESEND_API_KEY` | Required when `EMAIL_PROVIDER=resend`. |
+| `SMS_PROVIDER` | `console` (default, logs texts and sends nothing) or `twilio`. See below. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | From the Twilio console. Required when `SMS_PROVIDER=twilio`. |
+| `TWILIO_FROM` | Your Twilio phone number in E.164 form (`+15551234567`). |
 
 ### How EMAIL_PROVIDER works
 
@@ -85,6 +99,24 @@ All email goes through one function, `sendEmail()` in `src/lib/email/index.ts`.
 Reminder digests are the **only** email the platform sends. There is no email
 open-tracking anywhere; the "Waiting on" tracker only counts days since sent.
 
+### How SMS_PROVIDER works
+
+All texts go through one function, `sendSms()` in `src/lib/sms/index.ts`.
+
+- `SMS_PROVIDER=console` — nothing is sent. Each text is printed to the server log.
+  This is the default.
+- `SMS_PROVIDER=twilio` — sends through the Twilio REST API (`Messages.json`) with
+  `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` as basic auth and `TWILIO_FROM` as the
+  sender. Buy a number in the Twilio console and, for US traffic, register it for
+  A2P 10DLC or texts will be filtered.
+- Phone numbers typed on the Account page are normalised to E.164 (`normalizePhone()`;
+  10-digit numbers are assumed to be US). Numbers that cannot be normalised are
+  skipped and logged as `[reminders] sms to ... failed`.
+- People opt out by unticking "Text me reminders" on `/account`. If someone replies
+  STOP, Twilio blocks further messages to that number automatically; ask them to
+  untick the box too so the job stops trying.
+- Session reminders are the **only** texts the platform sends.
+
 ## Troubleshooting
 
 - *No emails arrive* — check `EMAIL_PROVIDER` is `resend` (not `console`), the API key
@@ -94,3 +126,7 @@ open-tracking anywhere; the "Waiting on" tracker only counts days since sent.
   24 hours. That is intended: a still-overdue task reminds you again the next day.
 - *Nothing happens* — the response JSON shows counts of what was created. All zeros
   simply means nothing is due.
+- *No texts arrive* — check `SMS_PROVIDER=twilio`, the three Twilio variables, that the
+  person ticked "Text me reminders" **and** has a phone on `/account`, and that they
+  are listed as a volunteer on the session record. Then look for `[reminders] sms to`
+  in the server log. A person is texted only once per session.

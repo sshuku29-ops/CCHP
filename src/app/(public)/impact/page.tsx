@@ -4,7 +4,8 @@ import { StatTile } from "@/components/public/stat-tile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { canEditContent } from "@/lib/cms/content";
 import { academicYearLabel, fmtDate } from "@/lib/dates";
-import { getFormalTopics, getPublicStats, getPublicYearMetrics, getUpcomingSessions } from "@/lib/public/queries";
+import { DocumentViewer } from "@/components/shared/document-viewer";
+import { getFormalTopics, getPublicBrochures, getPublicPoster, getPublicStats, getPublicYearMetrics, getUpcomingSessions } from "@/lib/public/queries";
 
 export const metadata = {
   title: "Impact",
@@ -12,11 +13,13 @@ export const metadata = {
 };
 
 export default async function ImpactPage() {
-  const [stats, years, topics, upcoming, canEdit] = await Promise.all([
+  const [stats, years, topics, upcoming, brochures, poster, canEdit] = await Promise.all([
     getPublicStats(),
     getPublicYearMetrics(),
     getFormalTopics(),
     getUpcomingSessions(),
+    getPublicBrochures(),
+    getPublicPoster(),
     canEditContent(),
   ]);
 
@@ -91,6 +94,43 @@ export default async function ImpactPage() {
             ))}
           </ul>
         )}
+      </Section>
+
+      {/* Brochures & handouts: public BROCHURE PDFs uploaded on each session record */}
+      <Section className="border-t" ariaLabelledBy="brochures-title">
+        <SectionHeading headingKey="impact.brochures.heading" introKey="impact.brochures.intro" id="brochures-title" manageHref="/sessions" canEdit={canEdit} />
+        {brochures.length === 0 ? (
+          <Editable k="impact.brochures.empty" as="p" className="text-muted-foreground" />
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {brochures.map((b) => (
+              <li key={b.id} className="flex flex-col rounded-lg border bg-card p-4">
+                <p className="font-medium leading-snug">{b.title}</p>
+                {b.session ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {fmtDate(b.session.date)}
+                    {b.session.topic && !b.title.includes(b.session.topic) ? ` · ${b.session.topic}` : ""}
+                  </p>
+                ) : null}
+                <a
+                  href={`/api/files/${b.fileKey}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  <Editable k="impact.brochures.open" as="span" />
+                  {" ↗"}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {poster ? (
+          <div className="mt-8 max-w-md">
+            <Editable k="impact.poster.heading" as="h3" className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground" />
+            <DocumentViewer doc={poster} />
+          </div>
+        ) : null}
       </Section>
 
       {/* Upcoming sessions */}

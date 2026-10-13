@@ -22,7 +22,7 @@ const NAV = [
  * button, and a hamburger that opens a plain list on small screens.
  * Hidden when printing (reports are meant to be printable).
  */
-export function SiteHeader() {
+export function SiteHeader({ fullName = "Colby Community Health Program" }: { fullName?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -31,8 +31,9 @@ export function SiteHeader() {
   return (
     <header className="print:hidden border-b bg-background">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <Link href="/" className="font-heading text-xl font-semibold tracking-tight" aria-label="CCHP home" onClick={() => setOpen(false)}>
-          CCHP
+        <Link href="/" className="flex flex-col leading-tight" aria-label="CCHP home" onClick={() => setOpen(false)}>
+          <span className="font-heading text-xl font-semibold tracking-tight">CCHP</span>
+          <span className="text-[11px] text-muted-foreground sm:text-xs">{fullName}</span>
         </Link>
 
         {/* Desktop links */}

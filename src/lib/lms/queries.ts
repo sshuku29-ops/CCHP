@@ -116,7 +116,14 @@ export async function getModule(courseId: string, moduleId: string, user: UserLi
     where: { id: moduleId, courseId, course: visibleCourseWhere(user) },
     include: {
       course: { select: { id: true, title: true, isPublished: true } },
-      resources: { orderBy: { order: "asc" } },
+      // Each resource points at a library page, an uploaded document, or (legacy) an external URL.
+      resources: {
+        orderBy: { order: "asc" },
+        include: {
+          page: { select: { id: true, slug: true, title: true, isPublished: true } },
+          document: { select: { id: true, title: true, fileName: true, fileKey: true, kind: true, mimeType: true } },
+        },
+      },
       videos: { orderBy: { order: "asc" } },
       assignments: {
         orderBy: { order: "asc" },

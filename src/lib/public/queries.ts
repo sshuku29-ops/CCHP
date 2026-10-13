@@ -143,6 +143,9 @@ export type LeadershipProfile = {
   lastName: string;
   leadershipTitle: string | null;
   bio: string | null;
+  /** Uploaded photo (served via /api/files/[key]). */
+  photoKey: string | null;
+  /** Legacy external photo link, used only when there is no uploaded photo. */
   photoUrl: string | null;
 };
 
@@ -150,7 +153,7 @@ export type LeadershipProfile = {
 export async function getLeadershipProfiles(limit?: number): Promise<LeadershipProfile[]> {
   const rows = await db.user.findMany({
     where: { showOnPublicSite: true, isActive: true },
-    select: { id: true, firstName: true, lastName: true, leadershipTitle: true, bio: true, photoUrl: true },
+    select: { id: true, firstName: true, lastName: true, leadershipTitle: true, bio: true, photoKey: true, photoUrl: true },
   });
   const rank = (title: string | null) => {
     const i = LEADERSHIP_ROLES.indexOf((title ?? "") as (typeof LEADERSHIP_ROLES)[number]);
@@ -160,7 +163,40 @@ export async function getLeadershipProfiles(limit?: number): Promise<LeadershipP
   return limit ? rows.slice(0, limit) : rows;
 }
 
-export type OptInVolunteer = { id: string; firstName: string; lastName: string; hours: number };
+/**
+ * One public profile page (/team/[id]). Only people who turned on
+ * "Show on the public site" are returned; everyone else is null (-> 404).
+ * Fields are the public-safe ones only: no email, phone or username.
+ */
+export async function getPublicProfile(id: string) {
+  const u = await db.user.findFirst({
+    where: { id, showOnPublicSite: true, isActive: true },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      leadershipTitle: true,
+      pronouns: true,
+      major: true,
+      graduationDate: true,
+      bio: true,
+      profileBody: true,
+      photoKey: true,
+      photoUrl: true,
+      _count: { select: { sessionParticipation: true } },
+    },
+  });
+  if (!u) return null;
+  const { _count, ...rest } = u;
+  return { ...rest, sessionsCount: _count.sessionParticipation };
+}
+
+/** "Class of 2027" from a graduation date, or null when unknown. */
+export function classYearLabel(graduationDate: Date | null | undefined) {
+  return graduationDate ? `Class of ${graduationDate.getUTCFullYear()}` : null;
+}
+
+export type OptInVolunteer = { id: string; firstName: string; lastName: string; hours: number; photoKey: string | null };
 
 /**
  * Volunteers who chose to be listed publicly, with their total hours.
@@ -169,13 +205,14 @@ export type OptInVolunteer = { id: string; firstName: string; lastName: string; 
 export async function getOptInVolunteers(): Promise<OptInVolunteer[]> {
   const rows = await db.user.findMany({
     where: { publicHoursOptIn: true, isActive: true },
-    select: { id: true, firstName: true, lastName: true, hoursLogs: { select: { hours: true } } },
+    select: { id: true, firstName: true, lastName: true, photoKey: true, hoursLogs: { select: { hours: true } } },
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
   });
   return rows.map((u) => ({
     id: u.id,
     firstName: u.firstName,
     lastName: u.lastName,
+    photoKey: u.photoKey,
     hours: Math.round(u.hoursLogs.reduce((sum, h) => sum + h.hours, 0) * 2) / 2, // nearest half hour
   }));
 }
@@ -185,7 +222,39 @@ export async function getOptInVolunteers(): Promise<OptInVolunteer[]> {
 export async function getPartners() {
   return db.communityPartner.findMany({
     orderBy: [{ order: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, description: true, url: true },
+    select: { id: true, name: true, description: true, url: true, logoKey: true },
+  });
+}
+
+// ───────────────────────── Logos & public documents ─────────────────────────
+
+/**
+ * A logo stored as a Document (category LOGO) whose title contains `titleContains`,
+ * e.g. "Colby" or "Mid-Maine". Returns the key to pass to /api/files/[key], or null.
+ */
+export async function getLogo(titleContains: string): Promise<{ fileKey: string; title: string } | null> {
+  return db.document.findFirst({
+    where: { category: "LOGO", kind: "IMAGE", title: { contains: titleContains, mode: "insensitive" } },
+    orderBy: { createdAt: "desc" },
+    select: { fileKey: true, title: true },
+  });
+}
+
+/** Public brochure PDFs with the date of the session they belong to, newest session first. */
+export async function getPublicBrochures() {
+  const rows = await db.document.findMany({
+    where: { category: "BROCHURE", isPublic: true, kind: "PDF" },
+    select: { id: true, title: true, fileKey: true, session: { select: { date: true, topic: true } } },
+  });
+  return rows.sort((a, b) => (b.session?.date.getTime() ?? 0) - (a.session?.date.getTime() ?? 0));
+}
+
+/** The most recent public image in the GENERAL category (used for the recruitment poster), or null. */
+export async function getPublicPoster() {
+  return db.document.findFirst({
+    where: { category: "GENERAL", isPublic: true, kind: "IMAGE" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true, fileKey: true, fileName: true, kind: true },
   });
 }
 
