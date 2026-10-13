@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CCHP Platform
 
-## Getting Started
+One web app for the Colby Community Health Program: a public website plus a login-gated
+team platform (projects & tasks, recruitment, training, hours, session records, annual reports).
 
-First, run the development server:
+It replaces the pile of Google Forms, Sheets, Docs and Moodle. It does **not** integrate with
+Google, Colby SSO, or Qualtrics — by design.
+
+## Quick start (local)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # then fill in ADMIN_USERNAME / ADMIN_PASSWORD (quote values!)
+npm run db:migrate:dev      # creates prisma/dev.db
+npm run db:seed             # creates the Main Admin + defaults
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Want sample data to click around? `npm run db:seed:demo` instead of `db:seed`
+(adds demo leaders, volunteers, tasks, sessions, hours, a recruitment cycle; demo password is printed).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sign in at `/login` with the admin username/password from `.env`. You will be asked to set a
+new password immediately.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Docs
 
-## Learn More
+- `docs/ADMIN_GUIDE.md` — **start here if you just inherited this**: deploy, env vars, backups, users, cron, troubleshooting.
+- `docs/CONVENTIONS.md` — how the code is organized and the rules for changing it.
+- `docs/MIGRATION.md` — importing the old Google Sheets (volunteers, hours, record keeping).
+- `docs/REMINDERS.md` — how reminder notifications and email digests run.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm run db:migrate:dev` | Create/apply migrations locally (after editing `prisma/schema.prisma`) |
+| `npm run db:migrate` | Apply migrations in production (`prisma migrate deploy`) |
+| `npm run db:seed` | Seed admin + defaults (idempotent) |
+| `npm run db:seed:demo` | Seed with demo data |
+| `npm run db:studio` | Browse the database in Prisma Studio |
+| `npm run typecheck` / `npm run lint` | Checks |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Security notes
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Secrets live only in `.env` (gitignored). `.env.example` has names only.
+- Passwords are bcrypt-hashed; sessions are httpOnly cookies backed by a DB table.
+- Authorization is enforced server-side on every page and action (`src/lib/auth/guards.ts`).
+- Login and the public application form are rate-limited; accounts lock after repeated failures.
+- Video is never uploaded: only validated YouTube links, rendered via the official embed.
