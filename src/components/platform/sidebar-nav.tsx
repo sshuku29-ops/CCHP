@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, CalendarDays, Bell, Target, FolderKanban, ListChecks, Hourglass, MessageSquare,
   UserPlus, Users, GraduationCap, Clock, BookOpen, FileText, Globe, ArrowRightLeft, ShieldCheck, Settings,
+  NotebookPen, Library, Award, UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ import type { NavGroup } from "./nav-config";
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard, CalendarDays, Bell, Target, FolderKanban, ListChecks, Hourglass, MessageSquare,
   UserPlus, Users, GraduationCap, Clock, BookOpen, FileText, Globe, ArrowRightLeft, ShieldCheck, Settings,
+  NotebookPen, Library, Award, UsersRound,
 };
 
 export function SidebarNav({ groups, unread, onNavigate }: { groups: NavGroup[]; unread: number; onNavigate?: () => void }) {

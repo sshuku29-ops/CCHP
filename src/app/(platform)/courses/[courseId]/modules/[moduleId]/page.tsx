@@ -137,7 +137,7 @@ export default async function ModulePage(props: PageProps<"/courses/[courseId]/m
                   {mod.resources.map((r) => (
                     <li key={r.id} className="space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
+                        <a href={r.url ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm underline underline-offset-4">
                           {r.label}
                           <ExternalLink className="size-3.5 text-muted-foreground" />
                         </a>
@@ -151,7 +151,7 @@ export default async function ModulePage(props: PageProps<"/courses/[courseId]/m
                         <details className="rounded-lg border px-3 py-2">
                           <summary className="cursor-pointer select-none text-xs text-muted-foreground">Edit link</summary>
                           <div className="pt-2">
-                            <ResourceEditForm resource={r} />
+                            <ResourceEditForm resource={{ id: r.id, label: r.label, url: r.url ?? "" }} />
                           </div>
                         </details>
                       ) : null}

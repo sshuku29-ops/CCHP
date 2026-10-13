@@ -7,6 +7,7 @@ const PLATFORM_PREFIXES = [
   "/dashboard", "/projects", "/tasks", "/goals", "/calendar", "/waiting-on", "/feedback",
   "/recruitment", "/courses", "/hours", "/volunteers", "/sessions", "/reports-admin",
   "/handoff", "/settings", "/account", "/site-content", "/notifications", "/change-password",
+  "/notes", "/library", "/certificates", "/welcome",
 ];
 
 export function proxy(request: NextRequest) {

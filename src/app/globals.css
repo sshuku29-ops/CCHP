@@ -173,3 +173,13 @@
 .cms-btn-primary { background: oklch(0.45 0.12 70); color: white; border-color: transparent; }
 .cms-btn:disabled { opacity: 0.6; }
 .cms-hint { color: #666; font-size: 12px; }
+
+/* ---- Rich text editor (Quill) ---- */
+.rte .ql-toolbar { border: 0; border-bottom: 1px solid var(--border); border-radius: 0.5rem 0.5rem 0 0; background: var(--muted); }
+.rte .ql-container { border: 0; font-family: var(--font-sans); font-size: 15px; }
+.rte .ql-editor { min-height: inherit; line-height: 1.6; }
+.ql-content h1 { font-size: 1.6rem; } .ql-content h2 { font-size: 1.3rem; } .ql-content h3 { font-size: 1.1rem; }
+.ql-content .ql-align-center { text-align: center; } .ql-content .ql-align-right { text-align: right; } .ql-content .ql-align-justify { text-align: justify; }
+.ql-content .ql-indent-1 { padding-left: 2em; } .ql-content .ql-indent-2 { padding-left: 4em; } .ql-content .ql-indent-3 { padding-left: 6em; }
+.ql-content img { max-width: 100%; height: auto; border-radius: 6px; }
+.ql-content table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; } .ql-content td, .ql-content th { border: 1px solid var(--border); padding: 4px 8px; }

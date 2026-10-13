@@ -2,55 +2,53 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/session";
 import { isAdmin } from "@/lib/auth/guards";
-import { readUpload } from "@/lib/uploads";
+import { readUpload, isSafeKey, contentTypeForKey } from "@/lib/uploads";
 
 /**
- * GET /api/files/[key] — download an assignment attachment.
- * Allowed for the volunteer who submitted it and for admins. Everyone else gets 404
- * (not 403) so file keys cannot be probed.
+ * GET /api/files/[key] — serves every stored file after an access check.
+ * Resolution order:
+ *  1. Public documents (brochures, logos, team photos): anyone.
+ *  2. Profile photos and partner logos: anyone (they appear on the public site).
+ *  3. Other documents: any signed-in user (admins and volunteers).
+ *  4. Assignment attachments: the submitter or an admin.
+ * Unknown or forbidden keys return 404 so keys cannot be probed.
+ * `?download=1` forces a download instead of inline display.
  */
-const SAFE_KEY = /^[A-Za-z0-9._-]+$/;
-
-const CONTENT_TYPES: Record<string, string> = {
-  pdf: "application/pdf",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ppt: "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  txt: "text/plain; charset=utf-8",
-  md: "text/plain; charset=utf-8",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-};
-
-export async function GET(_req: Request, ctx: RouteContext<"/api/files/[key]">) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
-
+export async function GET(req: Request, ctx: RouteContext<"/api/files/[key]">) {
   const { key } = await ctx.params;
-  if (!SAFE_KEY.test(key)) return new NextResponse("Not found", { status: 404 });
+  if (!isSafeKey(key)) return new NextResponse("Not found", { status: 404 });
+  const user = await getCurrentUser();
 
-  const submission = await db.submission.findFirst({
-    where: { fileKey: key },
-    select: { userId: true, fileName: true },
-  });
-  if (!submission) return new NextResponse("Not found", { status: 404 });
-  if (submission.userId !== user.id && !isAdmin(user)) return new NextResponse("Not found", { status: 404 });
+  let fileName = key;
+  let allowed = false;
 
-  const data = await readUpload(key);
-  if (!data) return new NextResponse("Not found", { status: 404 });
+  const doc = await db.document.findFirst({ where: { fileKey: key }, select: { fileName: true, isPublic: true, category: true } });
+  if (doc) {
+    fileName = doc.fileName;
+    allowed = doc.isPublic || doc.category === "LOGO" || !!user;
+  } else if (await db.user.findFirst({ where: { photoKey: key }, select: { id: true } })) {
+    allowed = true;
+  } else if (await db.communityPartner.findFirst({ where: { logoKey: key }, select: { id: true } })) {
+    allowed = true;
+  } else {
+    const submission = await db.submission.findFirst({ where: { fileKey: key }, select: { userId: true, fileName: true } });
+    if (submission) {
+      fileName = submission.fileName ?? key;
+      allowed = !!user && (submission.userId === user.id || isAdmin(user));
+    }
+  }
+  if (!allowed) return new NextResponse("Not found", { status: 404 });
 
-  const ext = key.split(".").pop()?.toLowerCase() ?? "";
-  // Keep the download name simple and header-safe.
-  const safeName = (submission.fileName ?? key).replace(/[^\w.\- ()]/g, "_").slice(0, 150) || key;
-  return new NextResponse(new Uint8Array(data), {
+  const bytes = await readUpload(key);
+  if (!bytes) return new NextResponse("Not found", { status: 404 });
+  const download = new URL(req.url).searchParams.get("download") === "1";
+  const safeName = fileName.replace(/[^\w. -]+/g, "_");
+  return new NextResponse(new Uint8Array(bytes), {
     headers: {
-      "Content-Type": CONTENT_TYPES[ext] ?? "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${safeName}"`,
-      "Content-Length": String(data.byteLength),
+      "Content-Type": contentTypeForKey(key),
+      "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${safeName}"`,
+      "Cache-Control": doc?.isPublic ? "public, max-age=3600" : "private, max-age=300",
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "private, no-store",
     },
   });
 }

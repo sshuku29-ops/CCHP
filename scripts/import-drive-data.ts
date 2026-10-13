@@ -125,6 +125,12 @@ async function main() {
     users.set(key, u.id);
     return u.id;
   }
+  // The Main Admin seeded from .env is Saidafzal Shukurov, Systems & Data Management Director.
+  const mainAdmin = await db.user.findFirst({ where: { role: "MAIN_ADMIN" }, orderBy: { createdAt: "asc" } });
+  if (mainAdmin) {
+    await db.user.update({ where: { id: mainAdmin.id }, data: { firstName: "Saidafzal", lastName: "Shukurov", email: "sshuku29@colby.edu", leadershipTitle: "Systems & Data Management Director", showOnPublicSite: true } });
+    users.set("Saidafzal Shukurov", mainAdmin.id);
+  }
   for (const p of LEADERS) await ensureUser(p, { active: true });
   for (const p of VOLUNTEERS_WITH_EMAIL) await ensureUser(p, { active: (p.grad ?? 0) >= 2027 });
   // Past volunteers named in the record-keeping sheet without a known email → inactive accounts so history links.
@@ -353,6 +359,8 @@ ${board}`, "Papa Boateng"],
 ${board}`, "Ashley Marie Diaz Briones"],
     ["Systems & Data Management Director", `# Systems & Data Management Director — handoff
 
+Current holder: Saidafzal Shukurov (built this platform in Oct 2026).
+
 ## What this role owns
 - This platform: user accounts, roles, backups, the reminder cron, the public site content, and the yearly handoff of the Main Admin role (see docs/ADMIN_GUIDE.md in the repo).
 - Record keeping: every formal and informal session logged, volunteer hours complete, annual report metrics checked.
@@ -364,7 +372,7 @@ ${board}`, "Ashley Marie Diaz Briones"],
 - End of each semester: deactivate graduated volunteers, export CSVs, verify the resources page entries.
 - Summer: rotate secrets, promote the incoming Main Admin before the outgoing one leaves.
 
-${board}`, null],
+${board}`, "Saidafzal Shukurov"],
     ["Executive Assistant (Vice Chair)", `# Executive Assistant (Vice Chair) — handoff
 
 _(Role not yet filled in 2026–27. Historically: review topic outlines with the Formal Sessions Director and give feedback to volunteers; support the Executive Director with meetings and follow-ups.)_

@@ -11,7 +11,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -37,6 +37,15 @@ model User {
   showOnPublicSite   Boolean   @default(false)
   // Volunteer list opt-in: show name + hours on the public site
   publicHoursOptIn   Boolean   @default(false)
+  photoKey           String?
+  photoPromptSeenAt  DateTime?
+  profileBody        String?
+  pronouns           String?
+  major              String?
+  smsOptIn           Boolean   @default(false)
+  // Profile photo stored through src/lib/uploads.ts; shown everywhere a person appears.
+  // Longer public profile (rich text HTML) for leadership pages.
+  // SMS reminders are opt-in only.
   mustChangePassword Boolean   @default(false)
   isActive           Boolean   @default(true)
   failedLoginCount   Int       @default(0)
@@ -67,6 +76,11 @@ model User {
   auditLogs            AuditLog[]
   calendarEvents       CalendarEvent[]
   quizAttempts         QuizAttempt[]
+  documents            Document[]
+  meetingNotes         MeetingNote[]           @relation("NoteAuthor")
+  libraryPages         LibraryPage[]
+  certificates         Certificate[]           @relation("CertificateOwner")
+  issuedCertificates   Certificate[]           @relation("CertificateIssuer")
   contentBlocks        ContentBlock[]
 }
 
@@ -144,6 +158,7 @@ model Task {
   status      String         @default("TODO") // TODO | IN_PROGRESS | DONE | BLOCKED
   priority    String         @default("NORMAL") // LOW | NORMAL | HIGH
   needsOwner  Boolean        @default(false)
+  isPersonal  Boolean        @default(false)
   startDate   DateTime?
   dueDate     DateTime?
   completedAt DateTime?
@@ -383,15 +398,21 @@ model CourseModule {
   assignments  Assignment[]
   completions  ModuleCompletion[]
   quizzes      Quiz[]
+  documents    Document[]
 }
 
 model ModuleResource {
-  id       String       @id @default(cuid())
-  moduleId String
-  module   CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  label    String
-  url      String
-  order    Int          @default(0)
+  id         String       @id @default(cuid())
+  moduleId   String
+  module     CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  label      String
+  // One of: an internal library page, an uploaded document, or (legacy) an external URL.
+  pageId     String?
+  page       LibraryPage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  documentId String?
+  document   Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  url        String?
+  order      Int          @default(0)
 }
 
 model ModuleVideo {
@@ -470,11 +491,14 @@ model SessionRecord {
   topic            String?
   title            String?
   participantCount Int                @default(0) // residents attending; count only, never identities
+  activities       String?
+  volunteerCount   Int?
   location         String?
   notes            String?
   term             String // "Fall 2025"
   year             Int
   materials        SessionMaterial[]
+  documents        Document[]
   volunteers       SessionVolunteer[]
   hoursLogs        HoursLog[]
   createdAt        DateTime           @default(now())
@@ -525,6 +549,7 @@ model CommunityPartner {
   name        String
   description String?
   url         String?
+  logoKey     String? // uploaded through src/lib/uploads.ts
   order       Int     @default(0)
 }
 
@@ -615,4 +640,88 @@ model ContentBlock {
   updatedById String?
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
   updatedAt   DateTime @updatedAt
+}
+
+// ───────────────────────── Documents & library ─────────────────────────
+
+// Any file kept on the platform: brochure PDFs, slide-deck PDFs, session photos
+// (volunteers only, never residents), training handouts, certificates, logos.
+model Document {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  kind         String // PDF | IMAGE | OTHER
+  category     String           @default("GENERAL") // SESSION_MATERIAL | BROCHURE | PHOTO | TRAINING | CERTIFICATE | LOGO | GENERAL
+  fileKey      String
+  fileName     String
+  mimeType     String
+  size         Int
+  isPublic     Boolean          @default(false) // viewable without signing in (e.g. brochures on the public site)
+  sessionId    String?
+  session      SessionRecord?   @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  moduleId     String?
+  module       CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  uploadedById String?
+  uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  resources    ModuleResource[]
+  certificate  Certificate?
+  createdAt    DateTime         @default(now())
+
+  @@index([category])
+  @@index([sessionId])
+}
+
+// Editable pages that live on the platform (training handouts, templates,
+// checklists). Replaces links out to Google Docs.
+model LibraryPage {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  title       String
+  category    String           @default("TRAINING") // TRAINING | TEMPLATE | CHECKLIST | GUIDE | OTHER
+  body        String // sanitized HTML from the rich text editor
+  isPublished Boolean          @default(true)
+  updatedById String?
+  updatedBy   User?            @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  resources   ModuleResource[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+// ───────────────────────── Meeting notes ─────────────────────────
+
+model MeetingNote {
+  id          String   @id @default(cuid())
+  title       String
+  date        DateTime
+  attendees   String?
+  body        String // sanitized HTML from the rich text editor
+  summary     String? // short summary / decisions (future: AI-generated from a recording)
+  source      String? // e.g. "Imported from 2026 CCHP Meeting Notes (Google Doc)"
+  createdById String?
+  createdBy   User?    @relation("NoteAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ───────────────────────── Certificates ─────────────────────────
+
+model Certificate {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation("CertificateOwner", fields: [userId], references: [id], onDelete: Cascade)
+  term          String // "Fall 2026"
+  year          Int
+  hours         Float
+  sessionsCount Int       @default(0)
+  manual        Boolean   @default(false) // issued by hand (ED / Main Admin) rather than computed
+  notes         String?
+  documentId    String?   @unique
+  document      Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  issuedById    String?
+  issuedBy      User?     @relation("CertificateIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedAt      DateTime  @default(now())
+
+  @@index([userId])
 }
