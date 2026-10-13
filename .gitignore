@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# database + uploads (local only)
+/prisma/*.db
+/prisma/*.db-journal
+/uploads/*
+!/uploads/.gitkeep
+/.taste-skill/
