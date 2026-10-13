@@ -54,6 +54,8 @@ export type CurrentUser = {
   firstName: string;
   lastName: string;
   leadershipTitle: string | null;
+  photoKey: string | null;
+  photoPromptSeenAt: Date | null;
   mustChangePassword: boolean;
   isActive: boolean;
 };
@@ -76,6 +78,8 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
           firstName: true,
           lastName: true,
           leadershipTitle: true,
+          photoKey: true,
+          photoPromptSeenAt: true,
           mustChangePassword: true,
           isActive: true,
         },
