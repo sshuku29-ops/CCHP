@@ -18,7 +18,7 @@ import { generateTempPassword } from "./temp-password";
  */
 
 /** Result for actions that hand back a one-time temporary password. */
-export type TempPasswordResult = ActionResult & { tempPassword?: string; userId?: string };
+export type TempPasswordResult = (NonNullable<ActionResult> & { tempPassword?: string; userId?: string; username?: string }) | null;
 
 // ─────────────────────────── validation ───────────────────────────
 
@@ -90,7 +90,7 @@ export async function createUserAction(_prev: TempPasswordResult, formData: Form
     });
     await audit(actor.id, "user.create", user.id, { username: data.username, role: data.role });
     revalidatePath("/settings/users");
-    return { ok: true, message: `Account @${data.username} created.`, tempPassword, userId: user.id };
+    return { ok: true, message: `Account @${data.username} created.`, tempPassword, userId: user.id, username: data.username };
   } catch (e) {
     return uniqueError(e) ?? { error: "Could not create the account. Please try again." };
   }
@@ -223,7 +223,7 @@ export async function resetUserPasswordAction(id: string): Promise<TempPasswordR
   await destroyAllSessionsForUser(id);
   await audit(actor.id, "user.password_reset", id);
   revalidatePath(`/settings/users/${id}`);
-  return { ok: true, tempPassword, userId: id, message: `Temporary password set for @${user.username}.` };
+  return { ok: true, tempPassword, userId: id, username: user.username, message: `Temporary password set for @${user.username}.` };
 }
 
 // ─────────────────────────── delete ───────────────────────────

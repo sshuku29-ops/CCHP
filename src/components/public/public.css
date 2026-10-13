@@ -1,0 +1,144 @@
+/*
+  Public website styles — "the page is the brochure".
+
+  The public site is built like the handouts CCHP gives out at the shelter:
+  paper sheets laid on a deep green ground, one ink, filled shapes with real
+  edges (stripes, scallops, a tear-off strip) and no outlines or shadows.
+  Colours come from the brand tokens in src/app/globals.css; nothing here
+  invents a new colour. Tailwind utilities handle spacing in the components;
+  this file holds the few things utilities cannot express cleanly.
+*/
+
+:root {
+  --pub-ground: var(--cchp-green);          /* deep green field the paper sits on */
+  --pub-paper: oklch(0.995 0.003 160);      /* plain white paper, a breath of green */
+  --pub-paper-2: var(--cchp-green-soft);    /* second tone step: pale green paper */
+  --pub-ink: var(--foreground);             /* full ink */
+  --pub-ink-soft: oklch(0.4 0.03 160);      /* soft ink for notes; still 7:1 on paper */
+  --pub-green-ink: var(--primary);          /* green ink for links and buttons on paper */
+  --pub-marker: var(--cchp-clay);           /* clay highlighter: one marked phrase per page */
+  --pub-on-ground: oklch(0.985 0.005 160);  /* text on the green ground */
+  --pub-margin: clamp(16px, 4vw, 32px);     /* one pair of page margins */
+}
+
+/* ---- Type steps (five sizes, far apart) ---- */
+.pub-display { font-family: var(--font-heading); font-weight: 500; font-size: clamp(2.5rem, 5.2vw, 4.5rem); line-height: 1.02; letter-spacing: -0.015em; }
+.pub-title   { font-family: var(--font-heading); font-weight: 500; font-size: clamp(1.9rem, 3.4vw, 3rem); line-height: 1.08; letter-spacing: -0.01em; }
+.pub-lead    { font-size: clamp(1.15rem, 1.6vw, 1.4rem); line-height: 1.45; }
+.pub-body    { font-size: 1.0625rem; line-height: 1.6; }   /* 17px */
+.pub-small   { font-size: 0.9375rem; line-height: 1.5; }   /* 15px */
+.pub-figure  { font-family: var(--font-heading); font-weight: 500; font-variant-numeric: tabular-nums lining-nums; line-height: 1; letter-spacing: -0.02em; font-size: clamp(3.5rem, 7vw, 6.5rem); }
+
+/* ---- Surfaces ---- */
+.pub-ground   { background: var(--pub-ground); color: var(--pub-on-ground); }
+.pub-paper    { background: var(--pub-paper); color: var(--pub-ink); }
+.pub-paper-2  { background: var(--pub-paper-2); color: var(--pub-ink); }
+.pub-ink-soft { color: var(--pub-ink-soft); }
+.pub-green-ink { color: var(--pub-green-ink); }
+
+/* The clay highlighter: a phrase marked like a line in a brochure. */
+.pub-mark {
+  background: var(--pub-marker);
+  color: var(--pub-ink);
+  padding: 0.05em 0.25em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ---- Links & buttons: one flat shape, square corners, decided once ---- */
+.pub-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.2em;
+}
+.pub-link:hover { text-decoration-thickness: 3px; }
+.pub-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--pub-green-ink);
+  color: var(--pub-on-ground);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+.pub-btn:hover { background: var(--cchp-green); }
+.pub-btn:active { transform: translateY(1px); }
+.pub-btn-paper { background: var(--pub-paper); color: var(--pub-green-ink); }
+.pub-btn-paper:hover { background: var(--pub-paper-2); }
+
+/* Focus is visible everywhere, on paper and on the green ground. */
+.pub-site a:focus-visible,
+.pub-site button:focus-visible,
+.pub-site summary:focus-visible {
+  outline: 3px solid var(--pub-marker);
+  outline-offset: 3px;
+}
+
+/* Skip link: hidden until it receives keyboard focus. */
+.pub-skip {
+  position: absolute;
+  left: var(--pub-margin);
+  top: -100px;
+  z-index: 50;
+  background: var(--pub-paper);
+  color: var(--pub-ink);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+}
+.pub-skip:focus { top: 12px; }
+
+/* ---- The tear-off strip: a row of round perforations ---- */
+.pub-perforated { border-top: 5px dotted var(--pub-ground); }
+
+/* ---- The 3-week cycle: a row that scrolls sideways and snaps ---- */
+.pub-row {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-inline: var(--pub-margin);
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pub-paper) transparent;
+}
+.pub-row > li { scroll-snap-align: start; flex: 0 0 min(72vw, 300px); }
+/* The sheets rise and fall along the row, like papers laid on a table. */
+.pub-row > li:nth-child(6n + 1) { margin-top: 0; }
+.pub-row > li:nth-child(6n + 2) { margin-top: 3.5rem; }
+.pub-row > li:nth-child(6n + 3) { margin-top: 1.25rem; }
+.pub-row > li:nth-child(6n + 4) { margin-top: 5rem; }
+.pub-row > li:nth-child(6n + 5) { margin-top: 2.25rem; }
+.pub-row > li:nth-child(6n + 6) { margin-top: 0.5rem; }
+
+/* ---- The reply card: tilted two degrees, cropped by its section ---- */
+.pub-tilt { transform: rotate(-2deg); }
+@media (max-width: 767px) { .pub-tilt { transform: rotate(-1deg); } }
+
+/* ---- Tables are allowed lines (they are real tables) ---- */
+.pub-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pub-table th, .pub-table td { padding: 0.75rem 0.75rem; text-align: left; vertical-align: top; }
+.pub-table th { font-weight: 600; }
+.pub-table tbody tr:nth-child(odd) { background: var(--pub-paper-2); }
+.pub-table .num { text-align: right; }
+
+/* ---- Reduced motion: keep content, drop travel ---- */
+@media (prefers-reduced-motion: reduce) {
+  .pub-site * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+/* ---- Print: the report page prints as a plain white document ---- */
+@media print {
+  .pub-site, .pub-ground, .pub-paper, .pub-paper-2 { background: #fff !important; color: #000 !important; }
+  .pub-site header, .pub-site footer, .no-print { display: none !important; }
+  .pub-print-sheet { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .pub-tilt { transform: none; }
+  .pub-site a { color: #000; text-decoration: none; }
+  .pub-table tbody tr:nth-child(odd) { background: #f1f1f1 !important; }
+}
