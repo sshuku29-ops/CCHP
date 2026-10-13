@@ -70,7 +70,7 @@ export function validateUpload(file: File, allowed: string[] = ALLOWED_EXTENSION
   return null;
 }
 
-function useSupabase() {
+function supabaseEnabled() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 async function supabaseBucket() {
@@ -88,7 +88,7 @@ export function newKey(ext: string) {
 /** Store raw bytes under a new key. */
 export async function storeBytes(bytes: Uint8Array | Buffer, ext: string, contentType?: string): Promise<string> {
   const key = newKey(ext);
-  if (useSupabase()) {
+  if (supabaseEnabled()) {
     const bucket = await supabaseBucket();
     const { error } = await bucket.upload(key, bytes, { contentType: contentType ?? contentTypeForKey(key), upsert: false });
     if (error) throw new Error(`Storage upload failed: ${error.message}`);
@@ -108,7 +108,7 @@ export async function storeUpload(file: File): Promise<{ key: string; name: stri
 
 export async function readUpload(key: string): Promise<Buffer | null> {
   if (!isSafeKey(key)) return null; // never allow path traversal
-  if (useSupabase()) {
+  if (supabaseEnabled()) {
     const bucket = await supabaseBucket();
     const { data, error } = await bucket.download(key);
     if (error || !data) return null;
@@ -123,7 +123,7 @@ export async function readUpload(key: string): Promise<Buffer | null> {
 
 export async function deleteUpload(key: string) {
   if (!isSafeKey(key)) return;
-  if (useSupabase()) {
+  if (supabaseEnabled()) {
     const bucket = await supabaseBucket();
     await bucket.remove([key]);
     return;
