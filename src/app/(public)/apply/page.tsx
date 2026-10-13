@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { listOpenCycles } from "@/lib/recruitment/queries";
 import { CYCLE_TYPES, CYCLE_TYPE_LABELS } from "@/lib/constants";
-import { fmtDate } from "@/lib/dates";
+import { closesLabel } from "@/lib/recruitment/helpers";
 import { Button } from "@/components/ui/button";
+import { CycleStatusPill } from "@/components/recruitment/cycle-status-pill";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata = { title: "Apply" };
@@ -42,9 +43,10 @@ export default async function ApplyIndexPage() {
                   {c.description ? <CardDescription className="whitespace-pre-line">{c.description}</CardDescription> : null}
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">
-                    {c.closesAt ? `Closes ${fmtDate(c.closesAt)}` : "Open until further notice"}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <CycleStatusPill cycle={c} compact />
+                    <span>{closesLabel(c.closesAt)}</span>
+                  </div>
                   <Button asChild>
                     <Link href={`/apply/${encodeURIComponent(c.slug)}`}>Apply</Link>
                   </Button>

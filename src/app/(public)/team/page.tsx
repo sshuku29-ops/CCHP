@@ -1,74 +1,77 @@
-import { PageSheet, Portrait, ScallopEdge } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
+import { InitialsAvatar } from "@/components/public/initials-avatar";
+import { PageTitle, Section, SectionHeading } from "@/components/public/section";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { canEditContent } from "@/lib/cms/content";
 import { getLeadershipProfiles, getOptInVolunteers } from "@/lib/public/queries";
 
 export const metadata = {
   title: "Team",
-  description: "The Colby students who lead and volunteer with CCHP.",
+  description: "The Colby College students who lead CCHP, and the volunteers who chose to be listed.",
 };
 
 export default async function TeamPage() {
-  const [leaders, volunteers] = await Promise.all([getLeadershipProfiles(), getOptInVolunteers()]);
+  const [leaders, volunteers, canEdit] = await Promise.all([getLeadershipProfiles(), getOptInVolunteers(), canEditContent()]);
 
   return (
     <>
-      <PageSheet
-        id="team"
-        title="The students behind CCHP"
-        intro="Leadership changes every year or two. These are the people running the program now, in the order the roles hand off to each other."
-      >
+      <Section className="pb-4 md:pb-6">
+        <PageTitle titleKey="team.heading" introKey="team.intro" />
+      </Section>
+
+      {/* Leadership grid */}
+      <Section ariaLabelledBy="leaders-title">
+        <SectionHeading headingKey="team.leadership.heading" id="leaders-title" manageHref="/site-content?tab=leadership" canEdit={canEdit} />
         {leaders.length === 0 ? (
-          <p className="pub-body mt-12 pub-ink-soft">No leadership profiles are published yet. Check back soon.</p>
+          <Editable k="team.leadership.empty" as="p" className="text-muted-foreground" />
         ) : (
-          <ul className="mt-16 grid gap-x-10 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {leaders.map((p) => (
-              <li key={p.id} className="max-w-[40ch]">
-                <Portrait firstName={p.firstName} lastName={p.lastName} photoUrl={p.photoUrl} size={112} />
-                <h2 className="font-heading font-medium text-[1.5rem] leading-tight mt-5">
+              <li key={p.id} className="rounded-lg border bg-card p-5">
+                <InitialsAvatar firstName={p.firstName} lastName={p.lastName} photoUrl={p.photoUrl} size="lg" />
+                <p className="mt-4 font-heading text-lg font-semibold">
                   {p.firstName} {p.lastName}
-                </h2>
-                {p.leadershipTitle ? <p className="pub-body pub-green-ink font-semibold mt-1">{p.leadershipTitle}</p> : null}
-                {p.bio ? <p className="pub-body mt-4">{p.bio}</p> : null}
+                </p>
+                {p.leadershipTitle ? <p className="text-sm font-medium text-primary">{p.leadershipTitle}</p> : null}
+                {p.bio ? <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{p.bio}</p> : null}
               </li>
             ))}
           </ul>
         )}
-      </PageSheet>
+      </Section>
 
-      {/* The volunteer list: a sheet of names, alphabetical, never ranked. */}
-      <section className="pub-ground" aria-labelledby="volunteers-title">
-        <div className="mx-auto max-w-3xl px-[var(--pub-margin)] md:px-0 pt-20 pb-24 md:pt-28 md:pb-32">
-          <ScallopEdge id="vol-top" tone="paper-2" />
-          <div className="pub-paper-2 px-6 py-12 md:px-14 md:py-16">
-            <h2 id="volunteers-title" className="pub-title max-w-[16ch]">
-              Volunteers who chose to be listed
-            </h2>
-            <p className="pub-body mt-5 max-w-[52ch]">
-              Every volunteer logs their own hours. The names here belong to volunteers who opted in to being listed publicly. The list is
-              alphabetical, not ranked: CCHP counts progress as a team.
-            </p>
-            {volunteers.length === 0 ? (
-              <p className="pub-body pub-ink-soft mt-10">No volunteers have opted in to be listed yet.</p>
-            ) : (
-              <ul className="mt-10 grid gap-x-10 gap-y-3 sm:grid-cols-2 pub-body" style={{ fontVariantNumeric: "tabular-nums" }}>
+      {/* Opt-in volunteers: alphabetical, never ranked */}
+      <Section className="border-t" ariaLabelledBy="volunteers-title">
+        <SectionHeading headingKey="team.volunteers.heading" introKey="team.volunteers.note" id="volunteers-title" manageHref="/site-content?tab=optins" canEdit={canEdit} />
+        {volunteers.length === 0 ? (
+          <Editable k="team.volunteers.empty" as="p" className="text-muted-foreground" />
+        ) : (
+          <div className="max-w-xl rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>
+                    <Editable k="team.volunteers.col.name" as="span" />
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Editable k="team.volunteers.col.hours" as="span" />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {volunteers.map((v) => (
-                  <li key={v.id} className="flex justify-between gap-4">
-                    <span>
+                  <TableRow key={v.id}>
+                    <TableCell>
                       {v.firstName} {v.lastName}
-                    </span>
-                    <span className="pub-ink-soft whitespace-nowrap">{formatHours(v.hours)}</span>
-                  </li>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{v.hours.toLocaleString("en-US")}</TableCell>
+                  </TableRow>
                 ))}
-              </ul>
-            )}
+              </TableBody>
+            </Table>
           </div>
-          <ScallopEdge id="vol-bottom" tone="paper-2" flip />
-        </div>
-      </section>
+        )}
+      </Section>
     </>
   );
-}
-
-function formatHours(h: number) {
-  const n = Number.isInteger(h) ? h.toString() : h.toFixed(1);
-  return `${n} ${h === 1 ? "hour" : "hours"}`;
 }

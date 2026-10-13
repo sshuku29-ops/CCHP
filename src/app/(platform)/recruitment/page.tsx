@@ -2,13 +2,14 @@ import Link from "next/link";
 import { requireModule } from "@/lib/auth/guards";
 import { listCycles } from "@/lib/recruitment/queries";
 import { toggleCycleOpenAction } from "@/lib/recruitment/actions";
-import { cycleWindowLabel, isCycleOpenNow } from "@/lib/recruitment/helpers";
+import { closesLabel, cycleStatus, daysUntilClose, isClosingSoon } from "@/lib/recruitment/helpers";
 import { CYCLE_TYPE_LABELS } from "@/lib/constants";
 import { fmtDate } from "@/lib/dates";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { CycleStatusPill } from "@/components/recruitment/cycle-status-pill";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ActionButton } from "@/components/recruitment/action-button";
@@ -19,6 +20,9 @@ export const metadata = { title: "Recruitment" };
 export default async function RecruitmentPage() {
   await requireModule("recruitment");
   const cycles = await listCycles();
+  // Nudge: open cycles whose deadline is within 3 days. Computed on every
+  // request (nothing is stored), so it is safe to show daily.
+  const closingSoon = cycles.filter((c) => isClosingSoon(c));
 
   return (
     <div>
@@ -26,6 +30,26 @@ export default async function RecruitmentPage() {
         title="Recruitment"
         description="Application cycles for volunteers, leadership, and partners. Reviewers score anonymously; decisions happen on the ranked list."
       />
+
+      {closingSoon.length > 0 ? (
+        <Alert className="mb-6 border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+          <AlertTitle>Closing soon</AlertTitle>
+          <AlertDescription className="text-amber-900/90 dark:text-amber-200">
+            {closingSoon.map((c) => {
+              const days = daysUntilClose(c.closesAt) ?? 0;
+              const when = days <= 0 ? "tonight" : days === 1 ? "tomorrow" : `in ${days} days`;
+              return (
+                <span key={c.id} className="block">
+                  <Link href={`/recruitment/${c.id}`} className="font-medium">
+                    {c.name}
+                  </Link>{" "}
+                  closes {when} ({fmtDate(c.closesAt)}). Extend the deadline on the cycle page if you need more time.
+                </span>
+              );
+            })}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_minmax(320px,380px)]">
         <Card>
@@ -44,14 +68,14 @@ export default async function RecruitmentPage() {
                       <TableHead>Cycle</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Dates</TableHead>
+                      <TableHead>Deadline</TableHead>
                       <TableHead className="text-right">Applications</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {cycles.map((c) => {
-                      const acceptingNow = isCycleOpenNow(c);
+                      const status = cycleStatus(c);
                       return (
                         <TableRow key={c.id}>
                           <TableCell>
@@ -67,15 +91,17 @@ export default async function RecruitmentPage() {
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{CYCLE_TYPE_LABELS[c.type as keyof typeof CYCLE_TYPE_LABELS] ?? c.type}</TableCell>
                           <TableCell>
-                            {c.isOpen ? (
-                              <Badge className={acceptingNow ? "bg-emerald-100 text-emerald-900 border-transparent" : "bg-amber-100 text-amber-900 border-transparent"}>
-                                {acceptingNow ? "Open" : "Open (outside dates)"}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary">Closed</Badge>
-                            )}
+                            <CycleStatusPill cycle={c} compact />
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{cycleWindowLabel(c, (d) => fmtDate(d))}</TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {status.kind === "SCHEDULED"
+                              ? `Opens ${fmtDate(status.opensAt)}`
+                              : status.kind === "DEADLINE_PASSED"
+                                ? `Closed ${fmtDate(status.closesAt)}`
+                                : status.kind === "OPEN"
+                                  ? closesLabel(status.closesAt)
+                                  : "—"}
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">{c._count.applications}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">

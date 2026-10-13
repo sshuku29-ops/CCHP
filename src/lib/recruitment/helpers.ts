@@ -3,6 +3,7 @@
 
 import type { ActionResult } from "@/lib/action-result";
 import { CYCLE_TYPES, APPLICATION_STATUSES, VIDEO_REVIEW_MODES } from "@/lib/constants";
+import { fmtDate } from "@/lib/dates";
 
 export type CycleType = (typeof CYCLE_TYPES)[number];
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
@@ -75,25 +76,93 @@ export function slugify(name: string) {
     .slice(0, 60) || "cycle";
 }
 
+const DAY_MS = 86_400_000;
+
+/** The fields every open/closed decision is based on. */
+export type CycleWindow = { isOpen: boolean; opensAt: Date | null; closesAt: Date | null };
+
 /**
- * A cycle accepts applications when it is marked open AND today is inside
- * its optional date window. `closesAt` is a date-only value (UTC midnight),
- * so we treat it as inclusive: applications close at the END of that day.
+ * The effective state of a cycle right now. This is THE single place that
+ * decides whether applications are accepted — the status pill, the /apply
+ * pages and the submit action all go through it.
+ *
+ *   - CLOSED            the manual switch is off (dates are ignored)
+ *   - SCHEDULED         switch is on, but "Opens on" is still in the future
+ *   - DEADLINE_PASSED   switch is on, but "Closes on" has gone by
+ *   - OPEN              switch is on and today is inside the date window
+ *
+ * `closesAt` is a date-only value (UTC midnight) and is inclusive:
+ * applications close at the END of that day.
  */
-export function isCycleOpenNow(
-  cycle: { isOpen: boolean; opensAt: Date | null; closesAt: Date | null },
-  now: Date = new Date(),
-) {
-  if (!cycle.isOpen) return false;
-  if (cycle.opensAt && cycle.opensAt.getTime() > now.getTime()) return false;
-  if (cycle.closesAt && cycle.closesAt.getTime() + 86_400_000 <= now.getTime()) return false;
-  return true;
+export type CycleStatus =
+  | { kind: "OPEN"; closesAt: Date | null }
+  | { kind: "SCHEDULED"; opensAt: Date }
+  | { kind: "DEADLINE_PASSED"; closesAt: Date }
+  | { kind: "CLOSED" };
+
+export function cycleStatus(cycle: CycleWindow, now: Date = new Date()): CycleStatus {
+  if (!cycle.isOpen) return { kind: "CLOSED" };
+  if (cycle.opensAt && cycle.opensAt.getTime() > now.getTime()) return { kind: "SCHEDULED", opensAt: cycle.opensAt };
+  if (cycle.closesAt && cycle.closesAt.getTime() + DAY_MS <= now.getTime()) return { kind: "DEADLINE_PASSED", closesAt: cycle.closesAt };
+  return { kind: "OPEN", closesAt: cycle.closesAt };
 }
 
-/** Short human description of the date window for admin tables. */
-export function cycleWindowLabel(cycle: { opensAt: Date | null; closesAt: Date | null }, fmt: (d: Date | null) => string) {
-  if (!cycle.opensAt && !cycle.closesAt) return "No dates set";
-  return `${cycle.opensAt ? fmt(cycle.opensAt) : "Any time"} → ${cycle.closesAt ? fmt(cycle.closesAt) : "no end date"}`;
+/** True when the public form accepts applications right now. */
+export function isCycleOpenNow(cycle: CycleWindow, now: Date = new Date()) {
+  return cycleStatus(cycle, now).kind === "OPEN";
+}
+
+/**
+ * Text for the status pill. `compact` gives the short form used in tables
+ * ("Open"); the default is the long form for the cycle page header
+ * ("OPEN — accepting applications").
+ */
+export function cycleStatusLabel(status: CycleStatus, compact = false): string {
+  switch (status.kind) {
+    case "OPEN":
+      return compact ? "Open" : "OPEN — accepting applications";
+    case "SCHEDULED":
+      return compact ? "Scheduled" : `SCHEDULED — opens ${fmtDate(status.opensAt)}`;
+    case "DEADLINE_PASSED":
+      return compact ? "Deadline passed" : `CLOSED — deadline passed ${fmtDate(status.closesAt)}`;
+    case "CLOSED":
+      return compact ? "Closed" : "CLOSED";
+  }
+}
+
+/** "Closes Mar 1, 2026" or "Open until further notice" — for cards and tables. */
+export function closesLabel(closesAt: Date | null) {
+  return closesAt ? `Closes ${fmtDate(closesAt)}` : "Open until further notice";
+}
+
+/** Full sentence for the deadline, used on the public form and the status panel. */
+export function deadlineSentence(closesAt: Date | null) {
+  return closesAt ? `Applications close at 11:59 pm on ${fmtDate(closesAt)}.` : "No deadline — applications stay open until you close the cycle.";
+}
+
+/**
+ * Whole days left until the deadline (0 = closes tonight). Null when there is
+ * no deadline. Used for the "closing soon" nudge on the Recruitment page.
+ */
+export function daysUntilClose(closesAt: Date | null, now: Date = new Date()): number | null {
+  if (!closesAt) return null;
+  return Math.floor((closesAt.getTime() + DAY_MS - now.getTime()) / DAY_MS);
+}
+
+/**
+ * The manual switch is OFF but an "Opens on" date is still ahead. Nothing will
+ * happen on that date by itself, so the status panel points this out.
+ */
+export function hasPendingOpenDate(cycle: CycleWindow, now: Date = new Date()) {
+  return !cycle.isOpen && !!cycle.opensAt && cycle.opensAt.getTime() > now.getTime();
+}
+
+/** Open right now AND the deadline is within `withinDays` days. */
+export function isClosingSoon(cycle: CycleWindow, now: Date = new Date(), withinDays = 3) {
+  const status = cycleStatus(cycle, now);
+  if (status.kind !== "OPEN" || !status.closesAt) return false;
+  const days = daysUntilClose(status.closesAt, now);
+  return days !== null && days <= withinDays;
 }
 
 /**

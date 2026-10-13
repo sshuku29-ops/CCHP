@@ -1,76 +1,69 @@
 import Link from "next/link";
-import { ScallopEdge, Stripe } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
 import type { PublicSettings } from "@/lib/public/queries";
 
-/**
- * The footer is the back of the brochure: a paper panel with a scalloped top
- * edge on the green ground. Left, a sign-off and the mission. Right, the
- * address block (email, Instagram, apply, team sign in) and a small stamp.
- */
+/** Footer for every public page. Hidden when printing. */
 export function SiteFooter({ settings }: { settings: PublicSettings }) {
-  const email = settings.contact_email;
-  const instagram = settings.instagram_url;
-  const instagramHandle = instagram ? instagram.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "@").replace(/\/+$/, "") : "";
-
+  const year = new Date().getFullYear();
   return (
-    <footer className="pub-ground mt-auto">
-      <Stripe id="footer-stripe" height={8} className="opacity-100" />
-      <div className="mx-auto max-w-6xl px-[var(--pub-margin)] pt-10 pb-6">
-        <ScallopEdge id="footer" />
-        <div className="pub-paper px-6 py-10 md:px-12 md:py-14">
-          <div className="grid gap-10 md:grid-cols-2">
-            <div>
-              <p className="pub-title max-w-[14ch]">Handed to you by CCHP students.</p>
-              <p className="pub-body mt-5 max-w-[46ch]">
-                {settings.mission || "Free, accessible health and wellness education for Waterville community members, delivered through real conversations."}
-              </p>
-            </div>
-            <div className="md:justify-self-end flex gap-8 items-start">
-              <address className="not-italic pub-body">
-                <ul className="space-y-3">
-                  {email ? (
-                    <li>
-                      <a href={`mailto:${email}`} className="pub-link pub-green-ink break-all">
-                        {email}
-                      </a>
-                    </li>
-                  ) : null}
-                  {instagram ? (
-                    <li>
-                      <a href={instagram} className="pub-link pub-green-ink" rel="noopener noreferrer" target="_blank">
-                        Instagram {instagramHandle}
-                      </a>
-                    </li>
-                  ) : null}
-                  <li>
-                    <Link href="/contact" className="pub-link pub-green-ink">
-                      Contact
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/apply" className="pub-link pub-green-ink">
-                      Apply to volunteer
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/login" className="pub-link pub-small pub-ink-soft">
-                      Team sign in
-                    </Link>
-                  </li>
-                </ul>
-              </address>
-              {/* The stamp in the corner: perforated edge, CCHP in the middle. */}
-              <div aria-hidden="true" className="hidden sm:block shrink-0 pub-ground p-1.5" style={{ width: 72 }}>
-                <div className="pub-paper-2 w-full aspect-[3/4] grid place-items-center">
-                  <span className="font-heading font-semibold text-sm">CCHP</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <p className="pub-small pub-ink-soft text-center mt-12">
-            Built and maintained by CCHP students. Colby Community Health Program, Waterville, Maine.
-          </p>
+    <footer className="print:hidden border-t bg-muted/40">
+      <div className="mx-auto grid max-w-5xl gap-8 px-4 py-10 md:grid-cols-3">
+        <div>
+          <p className="font-heading text-lg font-semibold">CCHP</p>
+          <Editable k="site.fullName" as="p" className="text-sm text-muted-foreground mt-1" />
+          <Editable k="footer.tagline" as="p" className="text-sm text-muted-foreground mt-3" multiline />
         </div>
+
+        <nav aria-label="Footer">
+          <p className="text-sm font-semibold">Pages</p>
+          <ul className="mt-2 grid grid-cols-2 gap-1 text-sm">
+            {[
+              { href: "/team", label: "Team" },
+              { href: "/impact", label: "Impact" },
+              { href: "/reports", label: "Reports" },
+              { href: "/resources", label: "Resources" },
+              { href: "/partners", label: "Partners" },
+              { href: "/contact", label: "Contact" },
+              { href: "/apply", label: "Apply" },
+            ].map((l) => (
+              <li key={l.href}>
+                <Link href={l.href} className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4">
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <div className="text-sm">
+          <p className="font-semibold">Get in touch</p>
+          <ul className="mt-2 space-y-1">
+            {settings.contact_email ? (
+              <li>
+                <a href={`mailto:${settings.contact_email}`} className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4 break-all">
+                  {settings.contact_email}
+                </a>
+              </li>
+            ) : null}
+            {settings.instagram_url ? (
+              <li>
+                <a href={settings.instagram_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4">
+                  Instagram
+                </a>
+              </li>
+            ) : null}
+            <li>
+              <Link href="/login" className="text-muted-foreground hover:text-foreground hover:underline underline-offset-4">
+                Team sign in
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div className="border-t">
+        <p className="mx-auto max-w-5xl px-4 py-4 text-xs text-muted-foreground">
+          © {year} Colby Community Health Program. No personal information about shelter residents is ever collected or published.
+        </p>
       </div>
     </footer>
   );

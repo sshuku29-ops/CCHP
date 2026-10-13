@@ -87,9 +87,11 @@ export const REPORT_STATUSES = ["DRAFT", "PUBLISHED"] as const;
 export const LEADERSHIP_ROLES = [
   "Executive Director",
   "Executive Assistant (Vice Chair)",
+  "Program Coordinator",
   "Formal Sessions Director",
   "Informal Sessions Director",
   "Educational Content & Media Director",
+  "Onboarding & Recruitment Director",
   "Systems & Data Management Director",
 ] as const;
 

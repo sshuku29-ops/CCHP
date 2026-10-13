@@ -1,7 +1,10 @@
-import Link from "next/link";
-import { PageSheet, ScallopEdge } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
+import { PageTitle, Section, SectionHeading } from "@/components/public/section";
+import { StatTile } from "@/components/public/stat-tile";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { canEditContent } from "@/lib/cms/content";
 import { academicYearLabel, fmtDate } from "@/lib/dates";
-import { getFormalTopics, getPublicStats, getUpcomingSessions, getYearMetrics } from "@/lib/public/queries";
+import { getFormalTopics, getPublicStats, getPublicYearMetrics, getUpcomingSessions } from "@/lib/public/queries";
 
 export const metadata = {
   title: "Impact",
@@ -9,156 +12,106 @@ export const metadata = {
 };
 
 export default async function ImpactPage() {
-  const [stats, years, topics, upcoming] = await Promise.all([getPublicStats(), getYearMetrics(), getFormalTopics(), getUpcomingSessions()]);
+  const [stats, years, topics, upcoming, canEdit] = await Promise.all([
+    getPublicStats(),
+    getPublicYearMetrics(),
+    getFormalTopics(),
+    getUpcomingSessions(),
+    canEditContent(),
+  ]);
 
   return (
     <>
-      <PageSheet
-        id="impact"
-        title="What the records say"
-        intro="Every session is logged with its date, topic and headcount, and every volunteer logs their hours. These numbers are read straight from those records."
-      >
-        {/* The headline figures, as a ledger */}
-        <dl className="mt-16 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-          <Figure n={stats.formalSessions} caption="formal sessions led" />
-          <Figure n={stats.distinctTopics} caption="health topics taught" />
-          <Figure n={stats.participants} caption="times a community member joined" />
-          <Figure n={stats.informalSessions} caption="informal sessions" />
-          <Figure n={stats.volunteerHours} caption="volunteer hours, counted together" />
-        </dl>
-      </PageSheet>
+      <Section className="pb-4 md:pb-6">
+        <PageTitle titleKey="impact.heading" introKey="impact.intro" />
+      </Section>
 
-      {/* Year by year table */}
-      <section className="pub-paper-2" aria-labelledby="years-title">
-        <div className="mx-auto max-w-6xl px-[var(--pub-margin)] pt-20 pb-20 md:pt-28 md:pb-28">
-          <h2 id="years-title" className="pub-title max-w-[16ch]">
-            Year by year
-          </h2>
-          <p className="pub-body mt-5 max-w-[52ch]">
-            An academic year runs from the fall semester through the following summer. Active volunteers are the people who logged hours or
-            worked a session that year.
-          </p>
-          {years.length === 0 ? (
-            <p className="pub-body pub-ink-soft mt-10">No sessions have been recorded yet.</p>
-          ) : (
-            <div className="mt-10 overflow-x-auto">
-              <table className="pub-table pub-body min-w-[640px]">
-                <thead>
-                  <tr>
-                    <th scope="col">Academic year</th>
-                    <th scope="col" className="num">
-                      Formal sessions
-                    </th>
-                    <th scope="col" className="num">
-                      Informal sessions
-                    </th>
-                    <th scope="col" className="num">
-                      Participants
-                    </th>
-                    <th scope="col" className="num">
-                      Volunteer hours
-                    </th>
-                    <th scope="col" className="num">
-                      Active volunteers
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {years.map((y) => (
-                    <tr key={y.year}>
-                      <th scope="row" className="font-semibold">
-                        {academicYearLabel(y.year)}
-                      </th>
-                      <td className="num">{y.formalSessions}</td>
-                      <td className="num">{y.informalSessions}</td>
-                      <td className="num">{y.participants.toLocaleString("en-US")}</td>
-                      <td className="num">{y.hours.toLocaleString("en-US")}</td>
-                      <td className="num">{y.activeVolunteers}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* Headline numbers */}
+      <Section ariaLabelledBy="glance-title">
+        <SectionHeading headingKey="impact.stats.heading" id="glance-title" manageHref="/sessions" canEdit={canEdit} />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+          <StatTile value={stats.formalSessions} labelKey="home.stats.formal" />
+          <StatTile value={stats.distinctTopics} labelKey="home.stats.topics" />
+          <StatTile value={stats.participants} labelKey="home.stats.participants" />
+          <StatTile value={stats.informalSessions} labelKey="home.stats.informal" />
+          <StatTile value={stats.volunteerHours} labelKey="home.stats.hours" />
         </div>
-      </section>
+        <Editable k="impact.survey.note" as="p" className="mt-6 max-w-3xl text-sm text-muted-foreground leading-relaxed" multiline />
+      </Section>
 
-      {/* Topics taught + upcoming dates, side by side */}
-      <section className="pub-paper" aria-labelledby="topics-title">
-        <div className="mx-auto max-w-6xl px-[var(--pub-margin)] pt-20 pb-20 md:pt-28 md:pb-28 grid gap-16 md:grid-cols-2">
-          <div>
-            <h2 id="topics-title" className="pub-title max-w-[14ch]">
-              Topics taught
-            </h2>
-            <p className="pub-body mt-5 max-w-[44ch]">Each formal session covers one topic and ends with a brochure about it. Most recent first.</p>
-            {topics.length === 0 ? (
-              <p className="pub-body pub-ink-soft mt-10">No formal sessions have been recorded yet.</p>
-            ) : (
-              <ul className="mt-10 space-y-4">
-                {topics.map((t) => (
-                  <li key={t.topic} className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-                    <span className="font-heading font-medium text-[1.35rem] leading-tight">{t.topic}</span>
-                    <span className="pub-small pub-ink-soft">
-                      {fmtDate(t.lastTaught, "MMMM yyyy")}
-                      {t.timesTaught > 1 ? `, taught ${t.timesTaught} times` : ""}
-                    </span>
-                  </li>
+      {/* Per-year table */}
+      <Section className="border-t" ariaLabelledBy="years-title">
+        <SectionHeading headingKey="impact.years.heading" introKey="impact.years.intro" id="years-title" />
+        {years.length === 0 ? (
+          <Editable k="impact.years.empty" as="p" className="text-muted-foreground" />
+        ) : (
+          <div className="overflow-x-auto rounded-lg border">
+            <Table className="min-w-[640px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Academic year</TableHead>
+                  <TableHead className="text-right">Formal sessions</TableHead>
+                  <TableHead className="text-right">Informal sessions</TableHead>
+                  <TableHead className="text-right">Participant visits</TableHead>
+                  <TableHead className="text-right">Volunteer hours</TableHead>
+                  <TableHead className="text-right">Active volunteers</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {years.map((y) => (
+                  <TableRow key={y.year}>
+                    <TableCell className="font-medium">{academicYearLabel(y.year)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{y.formalSessions}</TableCell>
+                    <TableCell className="text-right tabular-nums">{y.informalSessions}</TableCell>
+                    <TableCell className="text-right tabular-nums">{y.totalParticipants.toLocaleString("en-US")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{Math.round(y.totalVolunteerHours).toLocaleString("en-US")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{y.activeVolunteers}</TableCell>
+                  </TableRow>
                 ))}
-              </ul>
-            )}
+              </TableBody>
+            </Table>
           </div>
-          <div>
-            <h2 className="pub-title max-w-[14ch]">Coming up</h2>
-            <p className="pub-body mt-5 max-w-[44ch]">Sessions scheduled at the Mid-Maine Homeless Shelter. Dates can move; the shelter always has the latest.</p>
-            {upcoming.length === 0 ? (
-              <p className="pub-body pub-ink-soft mt-10">The next dates will be posted once the semester schedule is set.</p>
-            ) : (
-              <ul className="mt-10 space-y-4">
-                {upcoming.map((s) => (
-                  <li key={s.id} className="pub-body">
-                    <span className="font-semibold">{fmtDate(s.date, "EEEE, MMMM d, yyyy")}</span>
-                    <span className="pub-ink-soft">
-                      {" "}
-                      {s.topic ? s.topic : s.type === "INFORMAL" ? "Informal session" : "Formal session"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
+        )}
+      </Section>
 
-      {/* Feedback note: aggregates only, and there are none in the database */}
-      <section className="pub-ground" aria-labelledby="feedback-title">
-        <div className="mx-auto max-w-3xl px-[var(--pub-margin)] md:px-0 pt-20 pb-24 md:pt-28 md:pb-32">
-          <ScallopEdge id="fb-top" />
-          <div className="pub-paper px-6 py-12 md:px-14 md:py-16 text-center">
-            <h2 id="feedback-title" className="pub-title">
-              What participants tell us
-            </h2>
-            <p className="pub-body mt-5 max-w-[48ch] mx-auto">
-              After each session, participants can fill in a short, anonymous Qualtrics survey. We never publish individual answers. The results
-              are summarized, as totals only, in each year&apos;s annual report.
-            </p>
-            <p className="pub-body mt-6">
-              <Link href="/reports" className="pub-link pub-green-ink">
-                Read the annual reports
-              </Link>
-            </p>
-          </div>
-          <ScallopEdge id="fb-bottom" flip />
-        </div>
-      </section>
+      {/* Topics */}
+      <Section className="border-t" ariaLabelledBy="topics-title">
+        <SectionHeading headingKey="impact.topics.heading" introKey="impact.topics.intro" id="topics-title" />
+        {topics.length === 0 ? (
+          <Editable k="impact.topics.empty" as="p" className="text-muted-foreground" />
+        ) : (
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {topics.map((t) => (
+              <li key={t.topic} className="rounded-md border bg-card px-4 py-3">
+                <p className="font-medium">{t.topic}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t.timesTaught === 1 ? "Taught once" : `Taught ${t.timesTaught} times`} · last {fmtDate(t.lastTaught)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      {/* Upcoming sessions */}
+      <Section className="border-t" ariaLabelledBy="upcoming-title">
+        <SectionHeading headingKey="impact.upcoming.heading" introKey="impact.upcoming.intro" id="upcoming-title" manageHref="/sessions" canEdit={canEdit} />
+        {upcoming.length === 0 ? (
+          <Editable k="impact.upcoming.empty" as="p" className="text-muted-foreground" />
+        ) : (
+          <ul className="max-w-xl divide-y rounded-lg border">
+            {upcoming.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
+                <span className="font-medium tabular-nums">{fmtDate(s.date, "EEEE, MMMM d, yyyy")}</span>
+                <span className="text-sm text-muted-foreground">
+                  {s.type === "FORMAL" ? "Formal session" : "Informal session"}
+                  {s.topic ? ` · ${s.topic}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
     </>
-  );
-}
-
-function Figure({ n, caption }: { n: number; caption: string }) {
-  return (
-    <div className="grid grid-cols-[minmax(3ch,auto)_1fr] gap-x-5 items-baseline">
-      <dd className="pub-figure text-right order-1">{n.toLocaleString("en-US")}</dd>
-      <dt className="pub-body max-w-[20ch] order-2">{caption}</dt>
-    </div>
   );
 }

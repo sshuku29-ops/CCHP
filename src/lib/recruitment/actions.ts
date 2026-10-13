@@ -143,9 +143,13 @@ const cycleSchema = z.object({
   name: z.string().trim().min(2, "Give the cycle a name.").max(120, "Too long."),
   type: z.enum(CYCLE_TYPES, { error: "Pick an application type." }),
   description: z.string().trim().max(2000, "Too long.").optional(),
+  videoReviewMode: z.enum(VIDEO_REVIEW_MODES, { error: "Pick a video review mode." }),
+});
+
+// "Opens on" / "Closes on" as typed into <input type="date"> ("" = not set).
+const dateWindowSchema = z.object({
   opensAt: z.string().optional(),
   closesAt: z.string().optional(),
-  videoReviewMode: z.enum(VIDEO_REVIEW_MODES, { error: "Pick a video review mode." }),
 });
 
 /** Make a slug unique by appending -2, -3, … when needed. */
@@ -171,7 +175,7 @@ function parseDates(opensAt?: string, closesAt?: string): { opensAt: Date | null
 export async function createCycleAction(_prev: FormResult, fd: FormData): Promise<FormResult> {
   const user = await actionModule("recruitment");
   const values = formValues(fd);
-  const parsed = cycleSchema.safeParse(Object.fromEntries(fd));
+  const parsed = cycleSchema.extend(dateWindowSchema.shape).safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues), values };
   const dates = parseDates(parsed.data.opensAt, parsed.data.closesAt);
   if ("error" in dates) return { fieldErrors: { closesAt: dates.error }, values };
@@ -211,8 +215,6 @@ export async function updateCycleAction(_prev: FormResult, fd: FormData): Promis
     .extend({ slug: z.string().trim().min(2, "Slug is too short.").max(60, "Slug is too long.") })
     .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues), values };
-  const dates = parseDates(parsed.data.opensAt, parsed.data.closesAt);
-  if ("error" in dates) return { fieldErrors: { closesAt: dates.error }, values };
 
   const existing = await db.recruitmentCycle.findUnique({ where: { id: cycleId }, select: { id: true } });
   if (!existing) return { error: "Cycle not found.", values };
@@ -228,8 +230,6 @@ export async function updateCycleAction(_prev: FormResult, fd: FormData): Promis
       type: parsed.data.type,
       slug,
       description: parsed.data.description || null,
-      opensAt: dates.opensAt,
-      closesAt: dates.closesAt,
       videoReviewMode: parsed.data.videoReviewMode,
     },
   });
@@ -247,6 +247,47 @@ export async function toggleCycleOpenAction(cycleId: string) {
   await audit(user.id, cycle.isOpen ? "cycle.closed" : "cycle.opened", cycleId);
   revalidateCycle(cycleId);
   return { ok: true };
+}
+
+/**
+ * Explicit "Open applications now" / "Close applications now" buttons on the
+ * cycle page. Same effect as the toggle, but the button says what it does, so
+ * two admins clicking at once cannot flip it back and forth by accident.
+ */
+export async function setCycleOpenAction(cycleId: string, isOpen: boolean) {
+  const user = await actionModule("recruitment");
+  const cycle = await db.recruitmentCycle.findUnique({ where: { id: cycleId }, select: { isOpen: true } });
+  if (!cycle) return { error: "Cycle not found." };
+  if (cycle.isOpen !== isOpen) {
+    await db.recruitmentCycle.update({ where: { id: cycleId }, data: { isOpen } });
+    await audit(user.id, isOpen ? "cycle.opened" : "cycle.closed", cycleId);
+  }
+  revalidateCycle(cycleId);
+  return { ok: true };
+}
+
+/**
+ * The inline deadline form on the cycle page: "Opens on" / "Closes on".
+ * Ticking "Leave open until I close it manually" submits an empty closesAt,
+ * which clears the deadline. Dates only narrow the window — the manual
+ * switch (isOpen) still has to be on for the form to accept applications.
+ */
+export async function updateCycleDatesAction(_prev: FormResult, fd: FormData): Promise<FormResult> {
+  const user = await actionModule("recruitment");
+  const values = formValues(fd);
+  const cycleId = str(fd, "cycleId");
+  const parsed = dateWindowSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues), values };
+  const dates = parseDates(parsed.data.opensAt, parsed.data.closesAt);
+  if ("error" in dates) return { fieldErrors: { closesAt: dates.error }, values };
+
+  const existing = await db.recruitmentCycle.findUnique({ where: { id: cycleId }, select: { id: true } });
+  if (!existing) return { error: "Cycle not found.", values };
+
+  await db.recruitmentCycle.update({ where: { id: cycleId }, data: { opensAt: dates.opensAt, closesAt: dates.closesAt } });
+  await audit(user.id, "cycle.dates", cycleId, { opensAt: dates.opensAt, closesAt: dates.closesAt });
+  revalidateCycle(cycleId);
+  return { ok: true, message: dates.closesAt ? "Deadline saved." : "Saved — no deadline, open until you close it." };
 }
 
 /** Delete a cycle. Only allowed while it has no applications. */

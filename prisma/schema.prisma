@@ -66,6 +66,8 @@ model User {
   handoffEdits         HandoffDoc[]            @relation("HandoffEditor")
   auditLogs            AuditLog[]
   calendarEvents       CalendarEvent[]
+  quizAttempts         QuizAttempt[]
+  contentBlocks        ContentBlock[]
 }
 
 model Session {
@@ -380,6 +382,7 @@ model CourseModule {
   videos       ModuleVideo[]
   assignments  Assignment[]
   completions  ModuleCompletion[]
+  quizzes      Quiz[]
 }
 
 model ModuleResource {
@@ -558,4 +561,58 @@ model HandoffDoc {
   updatedBy   User?    @relation("HandoffEditor", fields: [updatedById], references: [id], onDelete: SetNull)
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
+}
+
+// ───────────────────────────── Quizzes ─────────────────────────────
+
+model Quiz {
+  id          String         @id @default(cuid())
+  moduleId    String
+  module      CourseModule   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  passPercent Int            @default(70)
+  order       Int            @default(0)
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  createdAt   DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id           String  @id @default(cuid())
+  quizId       String
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      String // JSON array of answer strings (2–6)
+  correctIndex Int
+  explanation  String?
+  order        Int     @default(0)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   String // JSON array of chosen option indexes (null for unanswered)
+  score     Int // correct answers
+  total     Int
+  percent   Int
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  @@index([quizId, userId])
+}
+
+// ───────────────────── Inline-editable site content ─────────────────
+
+// Any piece of text on the public site that admins can click to edit.
+// Keys look like "home.hero.title". Defaults live in src/lib/cms/defaults.ts.
+model ContentBlock {
+  key         String   @id
+  value       String
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
 }

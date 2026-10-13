@@ -46,3 +46,4 @@ next-env.d.ts
 /uploads/*
 !/uploads/.gitkeep
 /.taste-skill/
+scripts/.import-temp-passwords.json

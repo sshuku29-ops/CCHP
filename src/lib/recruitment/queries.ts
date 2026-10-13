@@ -15,17 +15,20 @@ export async function listOpenCycles() {
   return cycles.filter((c) => isCycleOpenNow(c));
 }
 
-/** One open cycle with its questions in order, or null if it is closed/missing. Cached per request. */
-export const getOpenCycleBySlug = cache(async (slug: string) => {
-  const cycle = await db.recruitmentCycle.findUnique({
+/**
+ * One cycle by its public slug, whatever its state, with questions in order.
+ * The page decides what to show from `cycleStatus(cycle)`: the form when it
+ * is OPEN, a friendly closed notice otherwise. Cached per request so
+ * generateMetadata and the page share one query. No PII lives on a cycle.
+ */
+export const getPublicCycleBySlug = cache(async (slug: string) => {
+  return db.recruitmentCycle.findUnique({
     where: { slug },
     select: {
       id: true, name: true, type: true, slug: true, description: true, isOpen: true, opensAt: true, closesAt: true,
       questions: { orderBy: [{ order: "asc" }, { id: "asc" }], select: { id: true, prompt: true, helpText: true, type: true, required: true } },
     },
   });
-  if (!cycle || !isCycleOpenNow(cycle)) return null;
-  return cycle;
 });
 
 // ─────────────────────────── Admin: cycles ───────────────────────────

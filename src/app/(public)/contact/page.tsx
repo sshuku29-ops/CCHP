@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { PageSheet } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
+import { ManageLink, PageTitle, Section } from "@/components/public/section";
+import { Button } from "@/components/ui/button";
+import { canEditContent } from "@/lib/cms/content";
 import { getSiteSettings } from "@/lib/public/queries";
 
 export const metadata = {
@@ -7,54 +10,61 @@ export const metadata = {
   description: "How to reach the Colby Community Health Program.",
 };
 
-/** No form here on purpose: email and Instagram only, and applications go through /apply. */
+/** No contact form on purpose: email and Instagram only. Applications go through /apply. */
 export default async function ContactPage() {
-  const settings = await getSiteSettings();
+  const [settings, canEdit] = await Promise.all([getSiteSettings(), canEditContent()]);
   const email = settings.contact_email;
   const instagram = settings.instagram_url;
 
   return (
-    <PageSheet id="contact" title="Get in touch" intro="CCHP is run by Colby College students in Waterville, Maine. Here is how to reach us.">
-      <dl className="mt-16 space-y-10 max-w-2xl">
-        <div>
-          <dt className="pub-title">Email</dt>
-          <dd className="pub-lead mt-3">
+    <Section>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <PageTitle titleKey="contact.heading" introKey="contact.intro" />
+        <ManageLink href="/site-content?tab=general" canEdit={canEdit} />
+      </div>
+
+      <div className="mt-10 grid gap-4 md:grid-cols-2">
+        <div className="rounded-lg border bg-card p-5">
+          <Editable k="contact.email.heading" as="h2" className="font-heading text-xl font-semibold" />
+          <p className="mt-2">
             {email ? (
-              <a href={`mailto:${email}`} className="pub-link pub-green-ink break-all">
+              <a href={`mailto:${email}`} className="break-all font-medium text-primary underline-offset-4 hover:underline">
                 {email}
               </a>
             ) : (
-              <span className="pub-ink-soft">A contact address will be posted here soon.</span>
+              <Editable k="contact.email.empty" as="span" className="text-muted-foreground" />
             )}
-          </dd>
+          </p>
         </div>
-        <div>
-          <dt className="pub-title">Instagram</dt>
-          <dd className="pub-lead mt-3">
+
+        <div className="rounded-lg border bg-card p-5">
+          <Editable k="contact.instagram.heading" as="h2" className="font-heading text-xl font-semibold" />
+          <p className="mt-2">
             {instagram ? (
-              <a href={instagram} className="pub-link pub-green-ink break-all" rel="noopener noreferrer" target="_blank">
+              <a href={instagram} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-primary underline-offset-4 hover:underline">
                 {instagram.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "")}
               </a>
             ) : (
-              <span className="pub-ink-soft">Not linked yet.</span>
+              <Editable k="contact.instagram.empty" as="span" className="text-muted-foreground" />
             )}
-          </dd>
+          </p>
         </div>
-        <div>
-          <dt className="pub-title">Want to join?</dt>
-          <dd className="pub-lead mt-3">
-            Applications for volunteers, leadership roles, and faculty or community partners all go through{" "}
-            <Link href="/apply" className="pub-link pub-green-ink">
-              the application page
+
+        <div className="rounded-lg border bg-card p-5">
+          <Editable k="contact.apply.heading" as="h2" className="font-heading text-xl font-semibold" />
+          <Editable k="contact.apply.note" as="p" className="mt-2 text-muted-foreground leading-relaxed" multiline />
+          <Button asChild className="mt-4">
+            <Link href="/apply">
+              <Editable k="contact.apply.button" as="span" />
             </Link>
-            , not by email.
-          </dd>
+          </Button>
         </div>
-        <div>
-          <dt className="pub-title">Where sessions happen</dt>
-          <dd className="pub-lead mt-3">Mid-Maine Homeless Shelter, Waterville, Maine. Sessions are for shelter residents and guests; dates are set with the shelter each semester.</dd>
+
+        <div className="rounded-lg border bg-card p-5">
+          <Editable k="contact.where.heading" as="h2" className="font-heading text-xl font-semibold" />
+          <Editable k="contact.where.body" as="p" className="mt-2 text-muted-foreground leading-relaxed" multiline />
         </div>
-      </dl>
-    </PageSheet>
+      </div>
+    </Section>
   );
 }

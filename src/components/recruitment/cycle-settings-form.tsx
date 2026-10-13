@@ -18,12 +18,10 @@ type Cycle = {
   type: string;
   slug: string;
   description: string | null;
-  opensAt: string; // yyyy-mm-dd or ""
-  closesAt: string;
   videoReviewMode: string;
 };
 
-/** Edit the cycle's basic fields (Settings tab). */
+/** Edit the cycle's basic fields (Settings tab). Dates and the open/close switch live in the status panel. */
 export function CycleSettingsForm({ cycle }: { cycle: Cycle }) {
   const [state, action, pending] = useActionState<FormResult, FormData>(updateCycleAction, null);
   const v = state?.values ?? {};
@@ -81,18 +79,6 @@ export function CycleSettingsForm({ cycle }: { cycle: Cycle }) {
         <Label htmlFor="description">Description (shown to applicants)</Label>
         <Textarea id="description" name="description" rows={4} defaultValue={v.description ?? cycle.description ?? ""} />
         <FieldError msg={err.description} />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="opensAt">Opens on (optional)</Label>
-          <Input id="opensAt" name="opensAt" type="date" defaultValue={v.opensAt ?? cycle.opensAt} />
-          <FieldError msg={err.opensAt} />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="closesAt">Closes on (optional, inclusive)</Label>
-          <Input id="closesAt" name="closesAt" type="date" defaultValue={v.closesAt ?? cycle.closesAt} />
-          <FieldError msg={err.closesAt} />
-        </div>
       </div>
       <Button type="submit" disabled={pending}>
         {pending ? "Saving…" : "Save settings"}

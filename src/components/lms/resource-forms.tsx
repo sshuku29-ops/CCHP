@@ -49,17 +49,22 @@ export function ResourceEditForm({ resource }: { resource: { id: string; label: 
 /** Add an unlisted YouTube video to a module. The URL is validated with isYouTubeUrl() on the server. */
 export function VideoAddForm({ moduleId }: { moduleId: string }) {
   return (
-    <ActionForm action={addVideo} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-end" resetOnSuccess>
+    <ActionForm action={addVideo} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto] sm:items-start" resetOnSuccess>
       {(state) => (
         <>
           <input type="hidden" name="moduleId" value={moduleId} />
           <Field id="vid-title" label="Video title" error={state?.fieldErrors?.title}>
             <Input id="vid-title" name="title" required maxLength={200} />
           </Field>
-          <Field id="vid-url" label="YouTube link (unlisted)" error={state?.fieldErrors?.youtubeUrl}>
-            <Input id="vid-url" name="youtubeUrl" type="url" required placeholder="https://youtu.be/…" />
+          <Field
+            id="vid-url"
+            label="YouTube link"
+            help="Paste a YouTube link. Unlisted videos work — only people with the link can watch."
+            error={state?.fieldErrors?.youtubeUrl}
+          >
+            <Input id="vid-url" name="youtubeUrl" type="url" required placeholder="https://www.youtube.com/watch?v=…" />
           </Field>
-          <SubmitButton size="sm">Add video</SubmitButton>
+          <SubmitButton size="sm" className="sm:mt-6">Add video</SubmitButton>
         </>
       )}
     </ActionForm>

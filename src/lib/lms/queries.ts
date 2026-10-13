@@ -87,7 +87,7 @@ export async function getCourse(courseId: string, user: UserLike) {
       modules: {
         orderBy: { order: "asc" },
         include: {
-          _count: { select: { assignments: true } },
+          _count: { select: { assignments: true, quizzes: true } },
           completions: { where: { userId: user.id }, select: { completedAt: true } },
         },
       },
@@ -103,6 +103,7 @@ export async function getCourse(courseId: string, user: UserLike) {
       order: m.order,
       dueDate: m.dueDate,
       assignmentCount: m._count.assignments,
+      quizCount: m._count.quizzes,
       completed: m.completions.length > 0,
     })),
   };
@@ -125,14 +126,160 @@ export async function getModule(courseId: string, moduleId: string, user: UserLi
         },
       },
       completions: { where: { userId: user.id }, select: { completedAt: true } },
+      quizzes: {
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        include: {
+          _count: { select: { questions: true } },
+          // Only the current user's attempts; we reduce them to a "best" below.
+          attempts: { where: { userId: user.id }, select: { percent: true, passed: true, createdAt: true } },
+        },
+      },
     },
   });
   if (!mod) return null;
+  const quizzes = mod.quizzes.map((q) => ({
+    id: q.id,
+    title: q.title,
+    description: q.description,
+    passPercent: q.passPercent,
+    questionCount: q._count.questions,
+    attemptCount: q.attempts.length,
+    best: bestAttempt(q.attempts),
+  }));
   return {
     ...mod,
+    quizzes,
+    quizzesPassed: quizzes.filter((q) => q.best?.passed).length,
     completed: mod.completions.length > 0,
     assignments: mod.assignments.map((a) => ({ ...a, latestSubmission: a.submissions[0] ?? null })),
   };
+}
+
+/** The highest-scoring attempt in a list (ties: the earliest one). Null when there are none. */
+function bestAttempt<T extends { percent: number; passed: boolean; createdAt: Date }>(attempts: T[]): T | null {
+  let best: T | null = null;
+  for (const a of attempts) if (!best || a.percent > best.percent) best = a;
+  return best;
+}
+
+// ───────────────────────── Quizzes ─────────────────────────────
+
+/** Parse the JSON `options` column into a string array (never throws). */
+export function parseOptions(raw: string): string[] {
+  const parsed = safeJsonParse<unknown>(raw, []);
+  return Array.isArray(parsed) ? parsed.map(String) : [];
+}
+
+/** Parse the JSON `answers` column: one chosen option index per question, null if unanswered. */
+export function parseAnswers(raw: string): (number | null)[] {
+  const parsed = safeJsonParse<unknown>(raw, []);
+  return Array.isArray(parsed) ? parsed.map((v) => (typeof v === "number" ? v : null)) : [];
+}
+
+/**
+ * Quiz as seen by the person TAKING it. The correct answers and explanations are
+ * deliberately NOT selected here, so they can never reach the browser before grading.
+ */
+export async function getQuizForTaking(courseId: string, moduleId: string, quizId: string, user: UserLike) {
+  const quiz = await db.quiz.findFirst({
+    where: { id: quizId, moduleId, module: { courseId, course: visibleCourseWhere(user) } },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      passPercent: true,
+      module: { select: { id: true, title: true, course: { select: { id: true, title: true } } } },
+      questions: { orderBy: { order: "asc" }, select: { id: true, prompt: true, options: true } },
+      // This user's own history, newest first.
+      attempts: { where: { userId: user.id }, orderBy: { createdAt: "desc" }, select: { id: true, percent: true, passed: true, score: true, total: true, createdAt: true } },
+    },
+  });
+  if (!quiz) return null;
+  return {
+    ...quiz,
+    questions: quiz.questions.map((q) => ({ ...q, options: parseOptions(q.options) })),
+    best: bestAttempt(quiz.attempts),
+  };
+}
+
+/**
+ * One finished attempt with the full answer key, for the review screen.
+ * Only the person who made the attempt can load it (filtered by userId).
+ */
+export async function getQuizAttemptReview(quizId: string, attemptId: string, user: UserLike) {
+  const attempt = await db.quizAttempt.findFirst({
+    where: { id: attemptId, quizId, userId: user.id },
+    include: {
+      quiz: { select: { id: true, title: true, passPercent: true, questions: { orderBy: { order: "asc" } } } },
+    },
+  });
+  if (!attempt) return null;
+  const answers = parseAnswers(attempt.answers);
+  return {
+    ...attempt,
+    answers,
+    questions: attempt.quiz.questions.map((q, i) => ({
+      id: q.id,
+      prompt: q.prompt,
+      options: parseOptions(q.options),
+      correctIndex: q.correctIndex,
+      explanation: q.explanation,
+      chosenIndex: answers[i] ?? null,
+    })),
+  };
+}
+
+/** Full quiz including correct answers — for the admin question editor only. */
+export async function getQuizForEditing(courseId: string, moduleId: string, quizId: string) {
+  const quiz = await db.quiz.findFirst({
+    where: { id: quizId, moduleId, module: { courseId } },
+    include: {
+      module: { select: { id: true, title: true, course: { select: { id: true, title: true } } } },
+      questions: { orderBy: { order: "asc" } },
+      _count: { select: { attempts: true } },
+    },
+  });
+  if (!quiz) return null;
+  return { ...quiz, questions: quiz.questions.map((q) => ({ ...q, options: parseOptions(q.options) })) };
+}
+
+/**
+ * Admin results: one row per volunteer with their best attempt and how many tries they made.
+ * Sorted by last name (never by score — no leaderboards).
+ */
+export async function getQuizResults(courseId: string, moduleId: string, quizId: string) {
+  const quiz = await db.quiz.findFirst({
+    where: { id: quizId, moduleId, module: { courseId } },
+    include: {
+      module: { select: { id: true, title: true, course: { select: { id: true, title: true } } } },
+      _count: { select: { questions: true } },
+      attempts: {
+        orderBy: { createdAt: "asc" },
+        include: { user: { select: { id: true, firstName: true, lastName: true } } },
+      },
+    },
+  });
+  if (!quiz) return null;
+  const byUser = new Map<string, { user: (typeof quiz.attempts)[number]["user"]; attempts: typeof quiz.attempts }>();
+  for (const a of quiz.attempts) {
+    const row = byUser.get(a.userId) ?? { user: a.user, attempts: [] };
+    row.attempts.push(a);
+    byUser.set(a.userId, row);
+  }
+  const rows = [...byUser.values()]
+    .map((r) => ({
+      user: r.user,
+      attemptCount: r.attempts.length,
+      best: bestAttempt(r.attempts)!,
+      lastAttemptAt: r.attempts[r.attempts.length - 1].createdAt,
+    }))
+    .sort((a, b) => a.user.lastName.localeCompare(b.user.lastName) || a.user.firstName.localeCompare(b.user.firstName));
+  return { id: quiz.id, title: quiz.title, passPercent: quiz.passPercent, questionCount: quiz._count.questions, module: quiz.module, rows };
+}
+
+/** Builds the canonical URL of a quiz page (taking). */
+export function quizHref(courseId: string, moduleId: string, quizId: string) {
+  return `/courses/${courseId}/modules/${moduleId}/quizzes/${quizId}`;
 }
 
 export type ModuleView = NonNullable<Awaited<ReturnType<typeof getModule>>>;

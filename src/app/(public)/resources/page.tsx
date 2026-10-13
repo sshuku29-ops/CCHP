@@ -1,4 +1,6 @@
-import { PageSheet } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
+import { ManageLink, PageTitle, Section } from "@/components/public/section";
+import { canEditContent } from "@/lib/cms/content";
 import { fmtDate } from "@/lib/dates";
 import { getPublishedResourcesByCategory, type PublicResource } from "@/lib/public/queries";
 
@@ -8,85 +10,93 @@ export const metadata = {
 };
 
 export default async function ResourcesPage() {
-  const groups = await getPublishedResourcesByCategory();
+  const [groups, canEdit] = await Promise.all([getPublishedResourcesByCategory(), canEditContent()]);
 
   return (
-    <PageSheet
-      id="resources"
-      title="Local resources"
-      intro="The phone numbers and places we point to during sessions. A CCHP leader owns each entry and checks it; the date it was last checked is shown so you know how fresh it is."
-    >
+    <Section>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <PageTitle titleKey="resources.heading" introKey="resources.intro" />
+        <ManageLink href="/site-content?tab=resources" canEdit={canEdit} />
+      </div>
+
       {groups.length === 0 ? (
-        <p className="pub-body pub-ink-soft mt-12">Resources will be listed here once they have been checked.</p>
+        <Editable k="resources.empty" as="p" className="mt-10 text-muted-foreground" />
       ) : (
-        <div className="mt-16 space-y-20">
+        <div className="mt-10 space-y-12">
           {groups.map((g) => (
             <section key={g.category} aria-labelledby={`cat-${slug(g.category)}`}>
-              <h2 id={`cat-${slug(g.category)}`} className="pub-title">
+              <h2 id={`cat-${slug(g.category)}`} className="font-heading text-2xl font-semibold">
                 {g.category}
               </h2>
-              <ul className="mt-8 grid gap-x-12 gap-y-12 md:grid-cols-2">
+              <ul className="mt-4 grid gap-4 md:grid-cols-2">
                 {g.items.map((r) => (
-                  <li key={r.id} className="max-w-[48ch]">
-                    <ResourceEntry r={r} />
-                  </li>
+                  <ResourceCard key={r.id} r={r} />
                 ))}
               </ul>
             </section>
           ))}
         </div>
       )}
-    </PageSheet>
+    </Section>
   );
 }
 
-function ResourceEntry({ r }: { r: PublicResource }) {
+function ResourceCard({ r }: { r: PublicResource }) {
   return (
-    <>
-      <h3 className="font-heading font-medium text-[1.5rem] leading-tight">{r.name}</h3>
-      {r.description ? <p className="pub-body mt-3">{r.description}</p> : null}
-      <dl className="pub-body mt-4 space-y-1.5">
+    <li className="rounded-lg border bg-card p-5">
+      <h3 className="text-lg font-semibold">{r.name}</h3>
+      {r.description ? <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{r.description}</p> : null}
+      <dl className="mt-3 space-y-1 text-sm">
         {r.phone ? (
-          <div className="flex gap-3">
-            <dt className="pub-ink-soft w-16 shrink-0">Phone</dt>
+          <div className="flex gap-2">
+            <dt className="w-16 shrink-0 text-muted-foreground">Phone</dt>
             <dd>
-              <a href={`tel:${telHref(r.phone)}`} className="pub-link pub-green-ink">
+              <a href={`tel:${telHref(r.phone)}`} className="font-medium text-primary underline-offset-4 hover:underline">
                 {r.phone}
               </a>
             </dd>
           </div>
         ) : null}
         {r.address ? (
-          <div className="flex gap-3">
-            <dt className="pub-ink-soft w-16 shrink-0">Address</dt>
+          <div className="flex gap-2">
+            <dt className="w-16 shrink-0 text-muted-foreground">Address</dt>
             <dd>{r.address}</dd>
           </div>
         ) : null}
         {r.url ? (
-          <div className="flex gap-3">
-            <dt className="pub-ink-soft w-16 shrink-0">Website</dt>
-            <dd>
-              <a href={r.url} className="pub-link pub-green-ink break-all" rel="noopener noreferrer" target="_blank">
+          <div className="flex gap-2">
+            <dt className="w-16 shrink-0 text-muted-foreground">Website</dt>
+            <dd className="min-w-0">
+              <a href={r.url} target="_blank" rel="noopener noreferrer" className="break-all text-primary underline-offset-4 hover:underline">
                 {r.url.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/+$/, "")}
               </a>
             </dd>
           </div>
         ) : null}
       </dl>
-      <p className="pub-small pub-ink-soft mt-4">
-        {r.lastVerifiedAt ? `Last verified ${fmtDate(r.lastVerifiedAt)}` : "Not yet verified"}
-        {r.owner ? ` · kept up to date by ${r.owner.firstName}${r.owner.leadershipTitle ? `, ${r.owner.leadershipTitle}` : ""}` : ""}
+      <p className="mt-3 text-xs text-muted-foreground">
+        {r.lastVerifiedAt ? (
+          <>
+            <Editable k="resources.verified" as="span" /> {fmtDate(r.lastVerifiedAt)}
+          </>
+        ) : null}
+        {r.lastVerifiedAt && r.owner ? " · " : null}
+        {r.owner ? (
+          <>
+            <Editable k="resources.owner" as="span" /> {r.owner.firstName}
+            {r.owner.leadershipTitle ? `, ${r.owner.leadershipTitle}` : ""}
+          </>
+        ) : null}
       </p>
-    </>
+    </li>
   );
 }
 
-/** Keep digits and a leading plus so "1-888-568-1112" becomes a dialable tel: link. */
+/** "207-555-0100 ext. 2" -> "2075550100" for the tel: link. */
 function telHref(phone: string) {
-  const plus = phone.trim().startsWith("+") ? "+" : "";
-  return plus + phone.replace(/\D/g, "");
+  return phone.replace(/[^\d+]/g, "");
 }
 
 function slug(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 }

@@ -1,8 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { LEADERSHIP_ROLES } from "@/lib/constants";
-import { academicYearForDate } from "@/lib/dates";
 import { safeJsonParse } from "@/lib/utils";
+import { computeYearMetrics, type YearMetrics } from "@/lib/reports/metrics";
 
 /**
  * Read-only queries for the PUBLIC website.
@@ -113,78 +113,26 @@ export async function getUpcomingSessions(limit = 6) {
 
 // ───────────────────────── Per-year metrics ─────────────────────────
 
-export type YearMetrics = {
-  /** Academic year start, e.g. 2025 means Fall 2025 – Summer 2026. */
-  year: number;
-  formalSessions: number;
-  informalSessions: number;
-  participants: number;
-  hours: number;
-  /** Distinct volunteers who logged hours or were on a session that year. */
-  activeVolunteers: number;
-  topics: string[];
-};
-
 /**
- * Per-academic-year totals for the Impact page and the live fallback on
- * report pages. Written here because src/lib/reports/metrics.ts did not exist
- * when the public site was built; if the reports module later exports a
- * `computeYearMetrics`, this can be swapped for it.
+ * Academic years that have at least one past session, newest first.
+ * The per-year numbers themselves come from computeYearMetrics() in
+ * src/lib/reports/metrics.ts so the public site and the annual reports
+ * always agree.
  */
-export async function getYearMetrics(): Promise<YearMetrics[]> {
-  const now = new Date();
-  const [sessions, hours] = await Promise.all([
-    db.sessionRecord.findMany({
-      where: { date: { lte: now } },
-      select: { year: true, type: true, topic: true, participantCount: true, volunteers: { select: { userId: true } } },
-    }),
-    db.hoursLog.findMany({ select: { date: true, hours: true, userId: true } }),
-  ]);
+export async function getSessionYears(): Promise<number[]> {
+  const rows = await db.sessionRecord.findMany({
+    where: { date: { lte: new Date() } },
+    select: { year: true },
+    distinct: ["year"],
+    orderBy: { year: "desc" },
+  });
+  return rows.map((r) => r.year);
+}
 
-  const years = new Map<number, YearMetrics & { volunteerIds: Set<string>; topicSet: Set<string> }>();
-  const bucket = (year: number) => {
-    let y = years.get(year);
-    if (!y) {
-      y = { year, formalSessions: 0, informalSessions: 0, participants: 0, hours: 0, activeVolunteers: 0, topics: [], volunteerIds: new Set(), topicSet: new Set() };
-      years.set(year, y);
-    }
-    return y;
-  };
-
-  for (const s of sessions) {
-    const y = bucket(s.year);
-    if (s.type === "FORMAL") {
-      y.formalSessions += 1;
-      const t = s.topic?.trim();
-      if (t && !y.topicSet.has(t.toLowerCase())) {
-        y.topicSet.add(t.toLowerCase());
-        y.topics.push(t);
-      }
-    } else {
-      y.informalSessions += 1;
-    }
-    y.participants += s.participantCount;
-    for (const v of s.volunteers) y.volunteerIds.add(v.userId);
-  }
-  for (const h of hours) {
-    const y = bucket(academicYearForDate(h.date));
-    y.hours += h.hours;
-    y.volunteerIds.add(h.userId);
-  }
-
-  return [...years.values()]
-    .map(
-      (y): YearMetrics => ({
-        year: y.year,
-        formalSessions: y.formalSessions,
-        informalSessions: y.informalSessions,
-        participants: y.participants,
-        hours: Math.round(y.hours),
-        activeVolunteers: y.volunteerIds.size,
-        topics: y.topics,
-      }),
-    )
-    .sort((a, b) => b.year - a.year);
+/** Live per-year metrics for every year with sessions, newest first. */
+export async function getPublicYearMetrics(): Promise<YearMetrics[]> {
+  const years = await getSessionYears();
+  return Promise.all(years.map((y) => computeYearMetrics(y)));
 }
 
 // ───────────────────────── People ─────────────────────────
@@ -319,21 +267,44 @@ export async function getPublishedReport(year: number) {
     publishedAt: r.publishedAt,
     highlights: safeJsonParse<string[]>(r.highlights, []).filter((h) => typeof h === "string" && h.trim()),
     quotes: safeJsonParse<ReportQuote[]>(r.quotes, []).filter((q) => q && typeof q.text === "string" && q.text.trim()),
-    metrics: safeJsonParse<ReportMetrics | null>(r.metricsSnapshot, null),
+    metrics: normalizeReportMetrics(safeJsonParse<Record<string, unknown> | null>(r.metricsSnapshot, null)),
   };
 }
 
-/** Live metrics for a report year, used when a report has no snapshot. */
-export async function getLiveMetricsForYear(year: number): Promise<ReportMetrics> {
-  const all = await getYearMetrics();
-  const y = all.find((m) => m.year === year);
-  if (!y) return { formalSessions: 0, informalSessions: 0, participants: 0, hours: 0, volunteers: 0, topics: [] };
+/**
+ * A snapshot may have been written by publishReportAction (the full
+ * YearMetrics shape from src/lib/reports/metrics.ts) or by the demo seed
+ * (a shorter shape). Accept both and return the small public shape.
+ */
+function normalizeReportMetrics(raw: Record<string, unknown> | null): ReportMetrics | null {
+  if (!raw || typeof raw !== "object") return null;
+  const num = (...keys: string[]) => {
+    for (const k of keys) if (typeof raw[k] === "number") return raw[k] as number;
+    return undefined;
+  };
+  const list = (...keys: string[]) => {
+    for (const k of keys) if (Array.isArray(raw[k])) return (raw[k] as unknown[]).filter((t): t is string => typeof t === "string");
+    return undefined;
+  };
   return {
-    formalSessions: y.formalSessions,
-    informalSessions: y.informalSessions,
-    participants: y.participants,
-    hours: y.hours,
-    volunteers: y.activeVolunteers,
-    topics: y.topics,
+    formalSessions: num("formalSessions"),
+    informalSessions: num("informalSessions"),
+    participants: num("participants", "totalParticipants"),
+    hours: num("hours", "totalVolunteerHours"),
+    volunteers: num("volunteers", "activeVolunteers"),
+    topics: list("topics", "formalTopics"),
+  };
+}
+
+/** Live numbers for a report year (used when a published report has no snapshot). */
+export async function getLiveReportMetrics(year: number): Promise<ReportMetrics> {
+  const m = await computeYearMetrics(year);
+  return {
+    formalSessions: m.formalSessions,
+    informalSessions: m.informalSessions,
+    participants: m.totalParticipants,
+    hours: Math.round(m.totalVolunteerHours),
+    volunteers: m.activeVolunteers,
+    topics: m.formalTopics,
   };
 }

@@ -1,42 +1,49 @@
 import Link from "next/link";
-import { PageSheet } from "@/components/public/stationery";
+import { Editable } from "@/components/cms/editable";
+import { ManageLink, PageTitle, Section } from "@/components/public/section";
+import { canEditContent } from "@/lib/cms/content";
 import { academicYearLabel, fmtDate } from "@/lib/dates";
 import { getPublishedReports } from "@/lib/public/queries";
 
 export const metadata = {
   title: "Annual reports",
-  description: "CCHP's published annual reports: the year's sessions, numbers, highlights and what we learned.",
+  description: "CCHP's published annual reports: what we did each academic year, what we learned, and the numbers.",
 };
 
 export default async function ReportsPage() {
-  const reports = await getPublishedReports();
+  const [reports, canEdit] = await Promise.all([getPublishedReports(), canEditContent()]);
 
   return (
-    <PageSheet
-      id="reports"
-      title="Annual reports"
-      intro="One report a year, written by the leadership team in May. Each one gathers the year's sessions, numbers, highlights and a few things we heard."
-    >
+    <Section>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <PageTitle titleKey="reports.heading" introKey="reports.intro" />
+        <ManageLink href="/reports-admin" canEdit={canEdit} />
+      </div>
+
       {reports.length === 0 ? (
-        <p className="pub-body pub-ink-soft mt-12">No reports have been published yet. The first one arrives at the end of the academic year.</p>
+        <Editable k="reports.empty" as="p" className="mt-10 text-muted-foreground" />
       ) : (
-        <ul className="mt-16 space-y-6 max-w-3xl">
+        <ul className="mt-10 grid gap-4 md:grid-cols-2">
           {reports.map((r) => (
-            <li key={r.year} className="pub-paper-2 px-6 py-7 md:px-10 md:py-9">
-              <p className="pub-small pub-ink-soft">
+            <li key={r.year} className="flex flex-col rounded-lg border bg-card p-5">
+              <p className="text-sm text-muted-foreground">
                 {academicYearLabel(r.year)}
-                {r.publishedAt ? ` · published ${fmtDate(r.publishedAt, "MMMM yyyy")}` : ""}
+                {r.publishedAt ? ` · published ${fmtDate(r.publishedAt)}` : ""}
               </p>
-              <h2 className="font-heading font-medium text-[clamp(1.5rem,2.4vw,2rem)] leading-tight mt-2">
-                <Link href={`/reports/${r.year}`} className="pub-link">
+              <h2 className="mt-1 font-heading text-xl font-semibold">
+                <Link href={`/reports/${r.year}`} className="hover:underline underline-offset-4">
                   {r.title}
                 </Link>
               </h2>
-              {r.summary ? <p className="pub-body mt-4 max-w-[60ch]">{r.summary}</p> : null}
+              {r.summary ? <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{r.summary}</p> : null}
+              <Link href={`/reports/${r.year}`} className="mt-4 text-sm font-medium text-primary underline-offset-4 hover:underline">
+                <Editable k="reports.read" as="span" />
+                {" →"}
+              </Link>
             </li>
           ))}
         </ul>
       )}
-    </PageSheet>
+    </Section>
   );
 }

@@ -1,11 +1,9 @@
 import { notFound } from "next/navigation";
 import { requireModule } from "@/lib/auth/guards";
 import { getCycle } from "@/lib/recruitment/queries";
-import { deleteCycleAction, toggleCycleOpenAction } from "@/lib/recruitment/actions";
-import { toDateInput } from "@/lib/dates";
+import { deleteCycleAction } from "@/lib/recruitment/actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmButton } from "@/components/shared/confirm-button";
-import { ActionButton } from "@/components/recruitment/action-button";
 import { CycleSettingsForm } from "@/components/recruitment/cycle-settings-form";
 
 export const metadata = { title: "Cycle settings" };
@@ -32,8 +30,6 @@ export default async function SettingsTab(props: PageProps<"/recruitment/[cycleI
               type: cycle.type,
               slug: cycle.slug,
               description: cycle.description,
-              opensAt: toDateInput(cycle.opensAt),
-              closesAt: toDateInput(cycle.closesAt),
               videoReviewMode: cycle.videoReviewMode,
             }}
           />
@@ -43,16 +39,12 @@ export default async function SettingsTab(props: PageProps<"/recruitment/[cycleI
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Accepting applications</CardTitle>
+            <CardTitle>Opening, closing and deadlines</CardTitle>
             <CardDescription>
-              {cycle.isOpen ? "This cycle is open. Closing it hides the public form immediately." : "This cycle is closed. Open it to publish the form."}
+              These are managed in the status panel at the top of this page (the same panel on every tab), so there is only one
+              place to look.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <ActionButton variant={cycle.isOpen ? "outline" : "default"} action={toggleCycleOpenAction.bind(null, cycle.id)}>
-              {cycle.isOpen ? "Close cycle" : "Open cycle"}
-            </ActionButton>
-          </CardContent>
         </Card>
 
         <Card className="border-destructive/40">

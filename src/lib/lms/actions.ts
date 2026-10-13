@@ -12,13 +12,15 @@ import { validateUpload, storeUpload } from "@/lib/uploads";
 import { notify } from "@/lib/notifications";
 import { audit } from "@/lib/audit";
 import { fieldErrorsFromZod, type ActionResult } from "@/lib/action-result";
-import { canManageLms, lmsAdminUserIds, assignmentHref } from "./queries";
+import { canManageLms, lmsAdminUserIds, assignmentHref, quizHref, parseOptions } from "./queries";
 
 /**
  * Server actions for the LMS.
  *  - Course / module / resource / video / assignment management: admins with the "lms" module.
  *  - Module completion + assignment submission: any signed-in user, on published courses only.
  *  - Submission review: admins with the "lms" module.
+ *  - Quiz / question management: admins with the "lms" module.
+ *  - Quiz attempts: any signed-in user (graded server-side; unlimited retakes).
  *
  * Multi-field forms return ActionResult (used with <ActionForm>). One-click actions
  * (move, delete, toggle) return nothing and throw on bad input.
@@ -379,4 +381,206 @@ export async function reviewSubmission(_prev: ActionResult, fd: FormData): Promi
   });
   revalidateCourses();
   return { ok: true, message: "Review saved and the volunteer has been notified." };
+}
+
+// ───────────────────────── Quizzes (admin) ─────────────────────
+
+const quizSchema = z.object({
+  title: titleSchema,
+  description: optionalText(2000),
+  passPercent: z.coerce
+    .number({ message: "Enter a number from 0 to 100." })
+    .int("Whole numbers only.")
+    .min(0, "Must be at least 0.")
+    .max(100, "Cannot be more than 100."),
+});
+
+export async function createQuiz(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const user = await actionModule("lms");
+  const parsed = quizSchema.extend({ moduleId: idSchema }).safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const { moduleId, ...data } = parsed.data;
+  const mod = await db.courseModule.findUnique({ where: { id: moduleId }, select: { courseId: true } });
+  if (!mod) return { error: "Module not found." };
+  const last = await db.quiz.findFirst({ where: { moduleId }, orderBy: { order: "desc" }, select: { order: true } });
+  const quiz = await db.quiz.create({ data: { ...data, moduleId, order: (last?.order ?? 0) + 1 } });
+  await audit(user.id, "quiz.create", quiz.id);
+  revalidateCourses();
+  // Go straight to the question editor so the next step is obvious.
+  redirect(`${quizHref(mod.courseId, moduleId, quiz.id)}/edit`);
+}
+
+export async function updateQuiz(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const user = await actionModule("lms");
+  const parsed = quizSchema.extend({ quizId: idSchema }).safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const { quizId, ...data } = parsed.data;
+  await db.quiz.update({ where: { id: quizId }, data });
+  await audit(user.id, "quiz.update", quizId);
+  revalidateCourses();
+  return { ok: true, message: "Quiz saved." };
+}
+
+export async function deleteQuiz(quizId: string) {
+  const user = await actionModule("lms");
+  const quiz = await db.quiz.delete({ where: { id: quizId }, select: { moduleId: true, module: { select: { courseId: true } } } });
+  await audit(user.id, "quiz.delete", quizId);
+  revalidateCourses();
+  redirect(`/courses/${quiz.module.courseId}/modules/${quiz.moduleId}`);
+}
+
+// ───────────────────────── Quiz questions (admin) ──────────────
+
+/**
+ * Reads a question form. Options arrive as separate inputs named option0..option5;
+ * blank ones at the end are ignored. correctIndex is the radio value.
+ */
+function readQuestionForm(fd: FormData) {
+  const options: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const v = String(fd.get(`option${i}`) ?? "").trim();
+    if (v) options.push(v);
+  }
+  // Missing fields become "" (not null) so the string schemas can report a friendly message;
+  // a missing radio becomes NaN so it cannot silently count as option 0.
+  const correctRaw = fd.get("correctIndex");
+  return {
+    prompt: String(fd.get("prompt") ?? ""),
+    explanation: String(fd.get("explanation") ?? ""),
+    correctIndex: correctRaw === null || correctRaw === "" ? NaN : String(correctRaw),
+    options,
+  };
+}
+
+const questionSchema = z
+  .object({
+    prompt: z.string().trim().min(1, "Write the question.").max(2000, "Keep the question under 2000 characters."),
+    explanation: optionalText(2000),
+    options: z
+      .array(z.string().trim().min(1).max(500, "Keep each option under 500 characters."))
+      .min(2, "Add at least two answer options.")
+      .max(6, "No more than six options."),
+    correctIndex: z.coerce.number({ message: "Pick the correct answer." }).int(),
+  })
+  .superRefine((q, ctx) => {
+    // The correct answer must point at one of the non-blank options.
+    if (q.correctIndex < 0 || q.correctIndex >= q.options.length) {
+      ctx.addIssue({ code: "custom", path: ["correctIndex"], message: "Pick which option is correct." });
+    }
+  });
+
+export async function addQuestion(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  await actionModule("lms");
+  const quizId = idSchema.safeParse(fd.get("quizId"));
+  if (!quizId.success) return { error: "Quiz not found." };
+  const parsed = questionSchema.safeParse(readQuestionForm(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const { options, ...rest } = parsed.data;
+  const last = await db.quizQuestion.findFirst({ where: { quizId: quizId.data }, orderBy: { order: "desc" }, select: { order: true } });
+  await db.quizQuestion.create({
+    data: { ...rest, options: JSON.stringify(options), quizId: quizId.data, order: (last?.order ?? 0) + 1 },
+  });
+  revalidateCourses();
+  return { ok: true, message: "Question added." };
+}
+
+export async function updateQuestion(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  await actionModule("lms");
+  const questionId = idSchema.safeParse(fd.get("questionId"));
+  if (!questionId.success) return { error: "Question not found." };
+  const parsed = questionSchema.safeParse(readQuestionForm(fd));
+  if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
+  const { options, ...rest } = parsed.data;
+  await db.quizQuestion.update({ where: { id: questionId.data }, data: { ...rest, options: JSON.stringify(options) } });
+  revalidateCourses();
+  return { ok: true, message: "Question saved." };
+}
+
+export async function deleteQuestion(questionId: string) {
+  await actionModule("lms");
+  await db.quizQuestion.delete({ where: { id: questionId } });
+  revalidateCourses();
+}
+
+/** Swap a question with its neighbour, then renumber 1..n (same approach as moveModule). */
+export async function moveQuestion(questionId: string, direction: "up" | "down") {
+  await actionModule("lms");
+  const q = await db.quizQuestion.findUnique({ where: { id: questionId }, select: { quizId: true } });
+  if (!q) throw new Error("Question not found.");
+  const siblings = await db.quizQuestion.findMany({ where: { quizId: q.quizId }, orderBy: { order: "asc" }, select: { id: true } });
+  const i = siblings.findIndex((s) => s.id === questionId);
+  const j = direction === "up" ? i - 1 : i + 1;
+  if (i < 0 || j < 0 || j >= siblings.length) return;
+  [siblings[i], siblings[j]] = [siblings[j], siblings[i]];
+  await db.$transaction(siblings.map((s, idx) => db.quizQuestion.update({ where: { id: s.id }, data: { order: idx + 1 } })));
+  revalidateCourses();
+}
+
+// ───────────────────────── Quiz attempts (everyone) ────────────
+
+/**
+ * Grade a quiz. The browser only sends the chosen option index per question
+ * (fields named q_<questionId>); the answer key never leaves the server.
+ * After saving the attempt we redirect to the review screen.
+ */
+export async function submitQuizAttempt(_prev: ActionResult, fd: FormData): Promise<ActionResult> {
+  const user = await actionUser();
+  const quizId = idSchema.safeParse(fd.get("quizId"));
+  if (!quizId.success) return { error: "Quiz not found." };
+
+  const quiz = await db.quiz.findUnique({
+    where: { id: quizId.data },
+    include: {
+      questions: { orderBy: { order: "asc" }, select: { id: true, options: true, correctIndex: true } },
+      module: { select: { id: true, courseId: true, course: { select: { isPublished: true } } } },
+    },
+  });
+  if (!quiz) return { error: "Quiz not found." };
+  if (!quiz.module.course.isPublished && !canManageLms(user)) return { error: "This course is not published yet." };
+  if (quiz.questions.length === 0) return { error: "This quiz has no questions yet." };
+
+  // Collect answers in question order. Unanswered → null (counts as wrong).
+  const answers: (number | null)[] = [];
+  const fieldErrors: Record<string, string> = {};
+  for (const q of quiz.questions) {
+    const raw = fd.get(`q_${q.id}`);
+    const n = raw === null || raw === "" ? NaN : Number(raw);
+    const optionCount = parseOptions(q.options).length;
+    if (!Number.isInteger(n) || n < 0 || n >= optionCount) {
+      fieldErrors[`q_${q.id}`] = "Please choose an answer.";
+      answers.push(null);
+    } else answers.push(n);
+  }
+  if (Object.keys(fieldErrors).length) return { fieldErrors, error: "Please answer every question." };
+
+  const total = quiz.questions.length;
+  const score = quiz.questions.filter((q, i) => answers[i] === q.correctIndex).length;
+  const percent = Math.round((score / total) * 100);
+  const passed = percent >= quiz.passPercent;
+
+  const attempt = await db.quizAttempt.create({
+    data: { quizId: quiz.id, userId: user.id, answers: JSON.stringify(answers), score, total, percent, passed },
+  });
+  await audit(user.id, "quiz.attempt", attempt.id, { score, total, passed });
+
+  // Passing every quiz in the module marks the module complete automatically.
+  if (passed) await completeModuleIfAllQuizzesPassed(quiz.module.id, user.id);
+
+  revalidateCourses();
+  redirect(`${quizHref(quiz.module.courseId, quiz.module.id, quiz.id)}?attempt=${attempt.id}`);
+}
+
+/** Upsert the ModuleCompletion row once the user has a passing attempt on every quiz in the module. */
+async function completeModuleIfAllQuizzesPassed(moduleId: string, userId: string) {
+  const quizzes = await db.quiz.findMany({
+    where: { moduleId },
+    select: { attempts: { where: { userId, passed: true }, select: { id: true }, take: 1 } },
+  });
+  const allPassed = quizzes.length > 0 && quizzes.every((q) => q.attempts.length > 0);
+  if (!allPassed) return;
+  await db.moduleCompletion.upsert({
+    where: { moduleId_userId: { moduleId, userId } },
+    update: {},
+    create: { moduleId, userId },
+  });
 }
