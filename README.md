@@ -20,7 +20,8 @@ Want sample data to click around? `npm run db:seed:demo` instead of `db:seed`
 (adds demo leaders, volunteers, tasks, sessions, hours, a recruitment cycle; demo password is printed).
 
 Sign in at `/login` with the admin username/password from `.env`. You will be asked to set a
-new password immediately.
+new password immediately. Admins can edit public-site text by opening any public page and pressing
+**Edit this page**.
 
 ## Docs
 
@@ -28,6 +29,8 @@ new password immediately.
 - `docs/CONVENTIONS.md` — how the code is organized and the rules for changing it.
 - `docs/MIGRATION.md` — importing the old Google Sheets (volunteers, hours, record keeping).
 - `docs/REMINDERS.md` — how reminder notifications and email digests run.
+- `docs/DATA_GAPS.md` — what was imported from the old Google Drive and what still needs filling in.
+- `docs/REMAINING_WORK.md` — everything left before and after the first deploy.
 
 ## Scripts
 

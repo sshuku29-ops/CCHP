@@ -110,6 +110,22 @@ CSV exports exist on every admin table — download them before big changes too.
 6. Confirm backups and the cron are still running (Settings page shows env checklist).
 7. Review `/resources`: mark each resource verified or fix it (the owner is shown on the public site).
 
+## 8b. Editing the public website text
+
+Sign in, open any public page (home, Team, Impact…). A yellow bar appears at the top for admins with
+the "Public site content" module. Press **Edit this page**, click any highlighted text, type, press
+**Save** (Enter saves single-line text; ⌘/Ctrl+Enter saves paragraphs; Esc cancels). Changes go live
+immediately. Lists (team members, partners, resources, reports) are managed from the **Manage** links
+next to each section, which open the admin pages. The original default text lives in
+`src/lib/cms/defaults.ts`; saving text identical to the default removes the override.
+
+## 8c. Training videos and quizzes
+
+Training → course → module. Admins see **Add a video** (paste an unlisted YouTube link), **Add a
+resource**, **Add an assignment**, and **Create a quiz** directly on the module page. Quizzes are
+multiple choice with a pass mark; volunteers can retake them, and passing every quiz in a module marks
+it complete. Results per quiz are under the quiz's **Results** link.
+
 ## 9. Common tasks
 
 | Task | Where |
@@ -120,6 +136,9 @@ CSV exports exist on every admin table — download them before big changes too.
 | Change the mission text / contact email | Public site → General |
 | Add a leadership photo | Public site → Leadership → photo URL (host the image anywhere public) |
 | Import old spreadsheets | Volunteers → Import (see `docs/MIGRATION.md`) |
+| Change wording on the public site | Sign in, open the page, Edit this page |
+| Open / close applications, set the deadline | Recruitment → cycle → status panel at the top |
+| Add a quiz or video to training | Training → course → module |
 | Create/edit the training course | Training → course → Manage |
 | See who is signed in / recent changes | Settings |
 
