@@ -1,0 +1,199 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-fraunces), Georgia, serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+/* ---- CCHP brand accents ---- */
+:root {
+  --cchp-green: oklch(0.45 0.12 160);
+  --cchp-green-soft: oklch(0.95 0.03 160);
+  --cchp-clay: oklch(0.62 0.13 45);
+  --primary: oklch(0.38 0.11 160);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.6 0.1 160);
+  --chart-1: oklch(0.55 0.13 160);
+  --chart-2: oklch(0.7 0.12 60);
+  --chart-3: oklch(0.6 0.12 250);
+  --chart-4: oklch(0.65 0.15 20);
+  --chart-5: oklch(0.5 0.05 280);
+}
+.dark {
+  --primary: oklch(0.7 0.12 160);
+  --primary-foreground: oklch(0.15 0 0);
+}
+.font-heading { font-family: var(--font-heading); }
+.prose-cchp h1 { font-family: var(--font-heading); font-size: 1.75rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+.prose-cchp h2 { font-family: var(--font-heading); font-size: 1.35rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.prose-cchp h3 { font-size: 1.1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+.prose-cchp p { margin: 0.6rem 0; line-height: 1.65; }
+.prose-cchp ul { list-style: disc; padding-left: 1.4rem; margin: 0.5rem 0; }
+.prose-cchp ol { list-style: decimal; padding-left: 1.4rem; margin: 0.5rem 0; }
+.prose-cchp li { margin: 0.2rem 0; }
+.prose-cchp a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.prose-cchp blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); margin: 0.75rem 0; }
+.prose-cchp code { font-family: var(--font-mono); font-size: 0.9em; background: var(--muted); padding: 0.1em 0.35em; border-radius: 4px; }
+.prose-cchp hr { border-color: var(--border); margin: 1.5rem 0; }
+@media print { .no-print { display: none !important; } }
+
+/* ---- Inline editing (public site, admins only) ---- */
+.cms-hot { outline: 2px dashed oklch(0.75 0.15 70); outline-offset: 3px; cursor: text; border-radius: 2px; }
+.cms-hot:hover { background: oklch(0.97 0.06 85); }
+.cms-editing-wrap { display: contents; }
+.cms-editing { outline: 2px solid oklch(0.6 0.15 70); outline-offset: 3px; background: oklch(0.99 0.02 85); white-space: pre-wrap; border-radius: 2px; min-width: 2ch; display: inline-block; }
+.cms-toolbar { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; vertical-align: middle; font-size: 13px; font-family: var(--font-sans); font-weight: 400; letter-spacing: 0; line-height: 1; }
+.cms-btn { border: 1px solid oklch(0.6 0.15 70); border-radius: 6px; padding: 4px 10px; background: white; color: #222; cursor: pointer; }
+.cms-btn-primary { background: oklch(0.45 0.12 70); color: white; border-color: transparent; }
+.cms-btn:disabled { opacity: 0.6; }
+.cms-hint { color: #666; font-size: 12px; }
+
+/* ---- Rich text editor (Quill) ---- */
+.rte .ql-toolbar { border: 0; border-bottom: 1px solid var(--border); border-radius: 0.5rem 0.5rem 0 0; background: var(--muted); }
+.rte .ql-container { border: 0; font-family: var(--font-sans); font-size: 15px; }
+.rte .ql-editor { min-height: inherit; line-height: 1.6; }
+.ql-content h1 { font-size: 1.6rem; } .ql-content h2 { font-size: 1.3rem; } .ql-content h3 { font-size: 1.1rem; }
+.ql-content .ql-align-center { text-align: center; } .ql-content .ql-align-right { text-align: right; } .ql-content .ql-align-justify { text-align: justify; }
+.ql-content .ql-indent-1 { padding-left: 2em; } .ql-content .ql-indent-2 { padding-left: 4em; } .ql-content .ql-indent-3 { padding-left: 6em; }
+.ql-content img { max-width: 100%; height: auto; border-radius: 6px; }
+.ql-content table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; } .ql-content td, .ql-content th { border: 1px solid var(--border); padding: 4px 8px; }
+
+/* ---- Read-only phone view for admins (see src/components/platform/mobile-notice.tsx) ----
+   The platform shell adds `.platform-readonly` for Admin / Main Admin accounts.
+   Under 768px every form and submit button is dimmed and ignores taps, except
+   elements marked data-allow-mobile (sign-out, search/filter forms, navigation).
+   Volunteers never get the class, so they can still log hours from a phone. */
+@media (max-width: 767px) {
+  .platform-readonly form:not([data-allow-mobile]):not([data-allow-mobile] *),
+  .platform-readonly button[type="submit"]:not([data-allow-mobile]):not([data-allow-mobile] *) {
+    pointer-events: none;
+    opacity: 0.5;
+    user-select: none;
+  }
+}

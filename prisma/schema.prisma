@@ -1,0 +1,729 @@
+// CCHP Platform data model.
+// Conventions:
+//  - No Prisma enums (keeps SQLite <-> Postgres portability). Allowed values
+//    for every "status"/"type" string live in src/lib/constants.ts and are
+//    validated with zod before writes.
+//  - Dates are stored as DateTime; "date only" fields are midnight UTC.
+//  - Never add resident data or sensitive volunteer data (see spec §3).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Supabase: pooled URL in DATABASE_URL, direct URL here (migrations only).
+  directUrl = env("DIRECT_URL")
+}
+
+// ───────────────────────── Users & auth ─────────────────────────
+
+model User {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  email              String?   @unique
+  passwordHash       String
+  role               String    @default("VOLUNTEER") // MAIN_ADMIN | ADMIN | VOLUNTEER
+  // Admin scoping: JSON array of module keys, or null = all modules.
+  allowedModules     String?
+  firstName          String
+  lastName           String
+  phone              String?
+  graduationDate     DateTime?
+  hasVehicle         Boolean   @default(false)
+  // Leadership profile (shown on the public site when showOnPublicSite = true)
+  leadershipTitle    String?
+  bio                String?
+  photoUrl           String?
+  showOnPublicSite   Boolean   @default(false)
+  // Volunteer list opt-in: show name + hours on the public site
+  publicHoursOptIn   Boolean   @default(false)
+  photoKey           String?
+  photoPromptSeenAt  DateTime?
+  profileBody        String?
+  pronouns           String?
+  major              String?
+  smsOptIn           Boolean   @default(false)
+  // Profile photo stored through src/lib/uploads.ts; shown everywhere a person appears.
+  // Longer public profile (rich text HTML) for leadership pages.
+  // SMS reminders are opt-in only.
+  mustChangePassword Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions             Session[]
+  createdTasks         Task[]                  @relation("TaskCreator")
+  taskAssignments      TaskAssignee[]
+  taskComments         TaskComment[]
+  ownedProjects        Project[]
+  createdGoals         Goal[]
+  waitingOn            WaitingOn[]
+  notifications        Notification[]
+  feedback             FeedbackItem[]
+  applicationScores    ApplicationScore[]
+  reviewNotes          ApplicationReviewNote[]
+  submissions          Submission[]            @relation("SubmissionAuthor")
+  reviewedSubmissions  Submission[]            @relation("SubmissionReviewer")
+  moduleCompletions    ModuleCompletion[]
+  hoursLogs            HoursLog[]
+  sessionParticipation SessionVolunteer[]
+  ownedResources       LocalResource[]
+  handoffDocs          HandoffDoc[]            @relation("HandoffOwner")
+  handoffEdits         HandoffDoc[]            @relation("HandoffEditor")
+  auditLogs            AuditLog[]
+  calendarEvents       CalendarEvent[]
+  quizAttempts         QuizAttempt[]
+  documents            Document[]
+  meetingNotes         MeetingNote[]           @relation("NoteAuthor")
+  libraryPages         LibraryPage[]
+  certificates         Certificate[]           @relation("CertificateOwner")
+  issuedCertificates   Certificate[]           @relation("CertificateIssuer")
+  contentBlocks        ContentBlock[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+
+  @@index([userId])
+}
+
+// Database-backed rate limiting so it works on serverless hosts.
+model RateLimit {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  target    String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ───────────────────── Project management ──────────────────────
+
+model Goal {
+  id          String    @id @default(cuid())
+  title       String
+  description String? // SMART statement
+  term        String // e.g. "Fall 2025"
+  year        Int
+  status      String    @default("ACTIVE") // ACTIVE | ACHIEVED | DROPPED
+  targetDate  DateTime?
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  projects    Project[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  goalId      String?
+  goal        Goal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  ownerId     String?
+  owner       User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  status      String    @default("ACTIVE") // ACTIVE | ON_HOLD | COMPLETED | ARCHIVED
+  startDate   DateTime?
+  dueDate     DateTime?
+  color       String?
+  tasks       Task[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Task {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  projectId   String?
+  project     Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      String         @default("TODO") // TODO | IN_PROGRESS | DONE | BLOCKED
+  priority    String         @default("NORMAL") // LOW | NORMAL | HIGH
+  needsOwner  Boolean        @default(false)
+  isPersonal  Boolean        @default(false)
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+  sortOrder   Int            @default(0)
+  createdById String?
+  createdBy   User?          @relation("TaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignees   TaskAssignee[]
+  links       TaskLink[]
+  comments    TaskComment[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+model TaskAssignee {
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model TaskLink {
+  id     String @id @default(cuid())
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label  String
+  url    String
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// External outreach tracker. No open-tracking: we only count days since sent.
+model WaitingOn {
+  id              String    @id @default(cuid())
+  contactName     String
+  organization    String?
+  whatSent        String
+  channel         String? // email | phone | in person | other
+  sentAt          DateTime
+  remindAfterDays Int       @default(7)
+  status          String    @default("WAITING") // WAITING | REPLIED | CLOSED
+  repliedAt       DateTime?
+  notes           String?
+  ownerId         String?
+  owner           User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String    @default("INFO") // INFO | TASK_DUE | TASK_OVERDUE | ASSIGNED | SUBMISSION | WAITING_ON | SYSTEM
+  title     String
+  body      String?
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model FeedbackItem {
+  id         String   @id @default(cuid())
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  anonymous  Boolean  @default(false)
+  category   String   @default("IDEA") // IDEA | ISSUE | PRAISE | OTHER
+  body       String
+  status     String   @default("NEW") // NEW | DISCUSSED | ACTIONED | ARCHIVED
+  adminNotes String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  type        String    @default("MEETING") // MEETING | SESSION | DEADLINE | OTHER
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  description String?
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([startsAt])
+}
+
+// ───────────────────────── Recruitment ─────────────────────────
+
+model RecruitmentCycle {
+  id              String                @id @default(cuid())
+  name            String
+  type            String // VOLUNTEER | LEADERSHIP | PARTNER
+  slug            String                @unique
+  description     String?
+  isOpen          Boolean               @default(false)
+  opensAt         DateTime?
+  closesAt        DateTime?
+  // AFTER = reviewers score anonymously first, videos unlocked after scoring.
+  // BEFORE = videos visible while scoring.
+  videoReviewMode String                @default("AFTER")
+  questions       ApplicationQuestion[]
+  criteria        RubricCriterion[]
+  applications    Application[]
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model ApplicationQuestion {
+  id       String              @id @default(cuid())
+  cycleId  String
+  cycle    RecruitmentCycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  prompt   String
+  helpText String?
+  type     String              @default("LONG_TEXT") // SHORT_TEXT | LONG_TEXT | VIDEO_LINK
+  required Boolean             @default(true)
+  order    Int                 @default(0)
+  answers  ApplicationAnswer[]
+}
+
+model RubricCriterion {
+  id          String             @id @default(cuid())
+  cycleId     String
+  cycle       RecruitmentCycle   @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  maxScore    Int                @default(5)
+  order       Int                @default(0)
+  scores      ApplicationScore[]
+}
+
+model Application {
+  id                  String                  @id @default(cuid())
+  cycleId             String
+  cycle               RecruitmentCycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  // PII — only returned to Admin/Main Admin outside anonymized review mode.
+  firstName           String
+  lastName            String
+  email               String
+  phone               String?
+  affiliation         String? // class year / department / organization
+  // Review state
+  status              String                  @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | INTERVIEW | ACCEPTED | REJECTED | WITHDRAWN
+  flaggedForInterview Boolean                 @default(false)
+  decisionNotes       String?
+  submittedAt         DateTime                @default(now())
+  answers             ApplicationAnswer[]
+  scores              ApplicationScore[]
+  reviewNotes         ApplicationReviewNote[]
+
+  @@index([cycleId, status])
+}
+
+model ApplicationAnswer {
+  id            String              @id @default(cuid())
+  applicationId String
+  application   Application         @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      ApplicationQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text          String?
+  videoUrl      String? // validated YouTube URL only
+
+  @@unique([applicationId, questionId])
+}
+
+model ApplicationScore {
+  id            String          @id @default(cuid())
+  applicationId String
+  application   Application     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      User            @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  criterionId   String
+  criterion     RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  score         Int
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([applicationId, reviewerId, criterionId])
+}
+
+model ApplicationReviewNote {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  reviewer      User        @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  body          String
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([applicationId, reviewerId])
+}
+
+// ──────────────────────────── LMS ──────────────────────────────
+
+model Course {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  isPublished Boolean        @default(false)
+  order       Int            @default(0)
+  modules     CourseModule[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model CourseModule {
+  id           String             @id @default(cuid())
+  courseId     String
+  course       Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title        String
+  summary      String?
+  instructions String? // markdown
+  order        Int                @default(0)
+  dueDate      DateTime?
+  resources    ModuleResource[]
+  videos       ModuleVideo[]
+  assignments  Assignment[]
+  completions  ModuleCompletion[]
+  quizzes      Quiz[]
+  documents    Document[]
+}
+
+model ModuleResource {
+  id         String       @id @default(cuid())
+  moduleId   String
+  module     CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  label      String
+  // One of: an internal library page, an uploaded document, or (legacy) an external URL.
+  pageId     String?
+  page       LibraryPage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  documentId String?
+  document   Document?    @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  url        String?
+  order      Int          @default(0)
+}
+
+model ModuleVideo {
+  id         String       @id @default(cuid())
+  moduleId   String
+  module     CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title      String
+  youtubeUrl String // validated; rendered via youtube-nocookie embed
+  order      Int          @default(0)
+}
+
+model ModuleCompletion {
+  moduleId    String
+  module      CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  completedAt DateTime     @default(now())
+
+  @@id([moduleId, userId])
+}
+
+model Assignment {
+  id             String       @id @default(cuid())
+  moduleId       String
+  module         CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  submissionType String       @default("ANY") // TEXT | FILE | VIDEO_LINK | ANY
+  dueDate        DateTime?
+  order          Int          @default(0)
+  submissions    Submission[]
+}
+
+model Submission {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation("SubmissionAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  text         String?
+  videoUrl     String?
+  fileName     String?
+  fileKey      String? // storage key (local path or bucket key)
+  fileSize     Int?
+  status       String     @default("SUBMITTED") // SUBMITTED | REVIEWED | NEEDS_REVISION
+  feedback     String?
+  reviewedById String?
+  reviewedBy   User?      @relation("SubmissionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  submittedAt  DateTime   @default(now())
+
+  @@index([assignmentId, userId])
+}
+
+// ───────────────────── Hours & session records ─────────────────
+
+model HoursLog {
+  id              String         @id @default(cuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime
+  hours           Float
+  type            String // FORMAL_SESSION | INFORMAL_SESSION | PREP | OTHER
+  notes           String?
+  sessionRecordId String?
+  sessionRecord   SessionRecord? @relation(fields: [sessionRecordId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+
+  @@index([userId, date])
+}
+
+model SessionRecord {
+  id               String             @id @default(cuid())
+  date             DateTime
+  type             String // FORMAL | INFORMAL
+  topic            String?
+  title            String?
+  participantCount Int                @default(0) // residents attending; count only, never identities
+  activities       String?
+  volunteerCount   Int?
+  location         String?
+  notes            String?
+  term             String // "Fall 2025"
+  year             Int
+  materials        SessionMaterial[]
+  documents        Document[]
+  volunteers       SessionVolunteer[]
+  hoursLogs        HoursLog[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([date])
+}
+
+model SessionMaterial {
+  id        String        @id @default(cuid())
+  sessionId String
+  session   SessionRecord @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  label     String
+  url       String
+}
+
+model SessionVolunteer {
+  sessionId String
+  session   SessionRecord @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String? // presenter | facilitator | support
+
+  @@id([sessionId, userId])
+}
+
+// ───────────────────────── Annual reports ─────────────────────
+
+model AnnualReport {
+  id              String    @id @default(cuid())
+  year            Int       @unique
+  title           String
+  status          String    @default("DRAFT") // DRAFT | PUBLISHED
+  summary         String?
+  narrative       String? // markdown
+  highlights      String? // JSON array of strings
+  quotes          String? // JSON array of { text, attribution }
+  metricsSnapshot String? // JSON of computed metrics at publish time
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ────────────────────────── Public site ───────────────────────
+
+model CommunityPartner {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  url         String?
+  logoKey     String? // uploaded through src/lib/uploads.ts
+  order       Int     @default(0)
+}
+
+model LocalResource {
+  id             String    @id @default(cuid())
+  name           String
+  category       String    @default("GENERAL")
+  description    String?
+  url            String?
+  phone          String?
+  address        String?
+  ownerId        String?
+  owner          User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  lastVerifiedAt DateTime?
+  isPublished    Boolean   @default(true)
+  order          Int       @default(0)
+  updatedAt      DateTime  @updatedAt
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+}
+
+// ───────────────────────── Role handoff docs ──────────────────
+
+model HandoffDoc {
+  id          String   @id @default(cuid())
+  roleTitle   String   @unique
+  ownerId     String?
+  owner       User?    @relation("HandoffOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  content     String? // markdown
+  updatedById String?
+  updatedBy   User?    @relation("HandoffEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+// ───────────────────────────── Quizzes ─────────────────────────────
+
+model Quiz {
+  id          String         @id @default(cuid())
+  moduleId    String
+  module      CourseModule   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  passPercent Int            @default(70)
+  order       Int            @default(0)
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  createdAt   DateTime       @default(now())
+}
+
+model QuizQuestion {
+  id           String  @id @default(cuid())
+  quizId       String
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      String // JSON array of answer strings (2–6)
+  correctIndex Int
+  explanation  String?
+  order        Int     @default(0)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   String // JSON array of chosen option indexes (null for unanswered)
+  score     Int // correct answers
+  total     Int
+  percent   Int
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  @@index([quizId, userId])
+}
+
+// ───────────────────── Inline-editable site content ─────────────────
+
+// Any piece of text on the public site that admins can click to edit.
+// Keys look like "home.hero.title". Defaults live in src/lib/cms/defaults.ts.
+model ContentBlock {
+  key         String   @id
+  value       String
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+}
+
+// ───────────────────────── Documents & library ─────────────────────────
+
+// Any file kept on the platform: brochure PDFs, slide-deck PDFs, session photos
+// (volunteers only, never residents), training handouts, certificates, logos.
+model Document {
+  id           String           @id @default(cuid())
+  title        String
+  description  String?
+  kind         String // PDF | IMAGE | OTHER
+  category     String           @default("GENERAL") // SESSION_MATERIAL | BROCHURE | PHOTO | TRAINING | CERTIFICATE | LOGO | GENERAL
+  fileKey      String
+  fileName     String
+  mimeType     String
+  size         Int
+  isPublic     Boolean          @default(false) // viewable without signing in (e.g. brochures on the public site)
+  sessionId    String?
+  session      SessionRecord?   @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  moduleId     String?
+  module       CourseModule?    @relation(fields: [moduleId], references: [id], onDelete: SetNull)
+  uploadedById String?
+  uploadedBy   User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  resources    ModuleResource[]
+  certificate  Certificate?
+  createdAt    DateTime         @default(now())
+
+  @@index([category])
+  @@index([sessionId])
+}
+
+// Editable pages that live on the platform (training handouts, templates,
+// checklists). Replaces links out to Google Docs.
+model LibraryPage {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  title       String
+  category    String           @default("TRAINING") // TRAINING | TEMPLATE | CHECKLIST | GUIDE | OTHER
+  body        String // sanitized HTML from the rich text editor
+  isPublished Boolean          @default(true)
+  updatedById String?
+  updatedBy   User?            @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  resources   ModuleResource[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+// ───────────────────────── Meeting notes ─────────────────────────
+
+model MeetingNote {
+  id          String   @id @default(cuid())
+  title       String
+  date        DateTime
+  attendees   String?
+  body        String // sanitized HTML from the rich text editor
+  summary     String? // short summary / decisions (future: AI-generated from a recording)
+  source      String? // e.g. "Imported from 2026 CCHP Meeting Notes (Google Doc)"
+  createdById String?
+  createdBy   User?    @relation("NoteAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+}
+
+// ───────────────────────── Certificates ─────────────────────────
+
+model Certificate {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation("CertificateOwner", fields: [userId], references: [id], onDelete: Cascade)
+  term          String // "Fall 2026"
+  year          Int
+  hours         Float
+  sessionsCount Int       @default(0)
+  manual        Boolean   @default(false) // issued by hand (ED / Main Admin) rather than computed
+  notes         String?
+  documentId    String?   @unique
+  document      Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  issuedById    String?
+  issuedBy      User?     @relation("CertificateIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  issuedAt      DateTime  @default(now())
+
+  @@index([userId])
+}
