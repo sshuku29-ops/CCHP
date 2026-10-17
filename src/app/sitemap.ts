@@ -1,3 +1,6 @@
+// Generated per request (needs the database); never prerendered at build time.
+export const dynamic = "force-dynamic";
+
 import type { MetadataRoute } from "next";
 import { getPublishedReports } from "@/lib/public/queries";
 
