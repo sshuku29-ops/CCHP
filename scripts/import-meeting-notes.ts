@@ -28,7 +28,7 @@ import { cleanHtml } from "../src/lib/html/sanitize";
 const db = new PrismaClient();
 const DRY_RUN = process.env.DRY_RUN === "1";
 
-const DATA_DIR = path.join(__dirname, "data", "notes");
+const DATA_DIR = path.join(__dirname, "private", "data", "notes");
 const DOCS: { file: string; title: string; year: number }[] = [
   { file: "2024-2025-cchc-ongoing-meeting-notes.md", title: "[OLD] CCHC Ongoing Meeting Notes 2024-2025", year: 2025 },
   { file: "2025-2026-cchp-meeting-notes.md", title: "[OLD] 2025-2026 CCHP Meeting Notes", year: 2026 },

@@ -51,3 +51,5 @@ scripts/.import-temp-passwords.json
 
 # one-off import scripts and source data with personal information (kept local only)
 /scripts/private/
+scripts/prod-setup.mjs
+scripts/prod-publish.mts

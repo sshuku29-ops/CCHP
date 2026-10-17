@@ -12,6 +12,15 @@ import { randomBytes } from "node:crypto";
 
 // Local-disk copy of storeBytes (src/lib/uploads.ts is server-only and cannot be imported here).
 async function storeBytes(bytes: Buffer, ext: string) {
+  const key0 = `${Date.now()}-${randomBytes(8).toString("hex")}.${ext}`;
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const { createClient } = await import("@supabase/supabase-js");
+    const client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+    const bucket = client.storage.from(process.env.SUPABASE_STORAGE_BUCKET ?? "cchp-files");
+    const { error } = await bucket.upload(key0, bytes, { contentType: ext === "pdf" ? "application/pdf" : "image/png" });
+    if (error) throw new Error("upload failed: " + error.message);
+    return key0;
+  }
   const dir = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
   await mkdir(dir, { recursive: true });
   const key = `${Date.now()}-${randomBytes(8).toString("hex")}.${ext}`;
